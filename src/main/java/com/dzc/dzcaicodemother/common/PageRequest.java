@@ -2,6 +2,9 @@ package com.dzc.dzcaicodemother.common;
 
 import lombok.Data;
 
+/**
+ * 请求封装类
+ */
 @Data
 public class PageRequest {
 

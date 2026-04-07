@@ -1,6 +1,7 @@
 package com.dzc.dzcaicodemother.controller;
 
 import cn.hutool.core.bean.BeanUtil;
+import com.mybatisflex.core.paginate.Page;
 import com.dzc.dzcaicodemother.annotation.AuthCheck;
 import com.dzc.dzcaicodemother.common.BaseResponse;
 import com.dzc.dzcaicodemother.common.DeleteRequest;
@@ -14,7 +15,6 @@ import com.dzc.dzcaicodemother.model.entity.User;
 import com.dzc.dzcaicodemother.model.vo.LoginUserVO;
 import com.dzc.dzcaicodemother.model.vo.UserVO;
 import com.dzc.dzcaicodemother.service.UserService;
-import com.mybatisflex.core.paginate.Page;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.web.bind.annotation.*;
@@ -22,8 +22,9 @@ import org.springframework.web.bind.annotation.*;
 import java.util.List;
 
 /**
- *  控制层。
- * @author dzc
+ * 用户 控制层。
+ *
+   @author dzc
  */
 @RestController
 @RequestMapping("/user")
@@ -33,26 +34,28 @@ public class UserController {
     private UserService userService;
 
     /**
-     * 注册用户。
+     * 用户注册
      *
-     * @param userRegisterRequest
-     * @return {@code true} 保存成功，{@code false} 保存失败
+     * @param userRegisterRequest 用户注册请求
+     * @return 注册结果
      */
     @PostMapping("/register")
     public BaseResponse<Long> userRegister(@RequestBody UserRegisterRequest userRegisterRequest) {
         ThrowUtils.throwIf(userRegisterRequest == null, ErrorCode.PARAMS_ERROR);
         String userAccount = userRegisterRequest.getUserAccount();
+        String userName = userRegisterRequest.getUserName();
         String userPassword = userRegisterRequest.getUserPassword();
         String checkPassword = userRegisterRequest.getCheckPassword();
-        long result = userService.userRegister(userAccount, userPassword, checkPassword);
+        long result = userService.userRegister(userAccount, userPassword, checkPassword, userName);
         return ResultUtils.success(result);
     }
 
     /**
      * 用户登录
-     * @param userLoginRequest
-     * @param request
-     * @return
+     *
+     * @param userLoginRequest 用户登录请求
+     * @param request          请求对象
+     * @return 脱敏后的用户登录信息
      */
     @PostMapping("/login")
     public BaseResponse<LoginUserVO> userLogin(@RequestBody UserLoginRequest userLoginRequest, HttpServletRequest request) {
@@ -63,25 +66,24 @@ public class UserController {
         return ResultUtils.success(loginUserVO);
     }
 
-    /**
-     * 获取登录用户信息
-     * @param request
-     * @return
-     */
     @GetMapping("/get/login")
     public BaseResponse<LoginUserVO> getLoginUser(HttpServletRequest request) {
         User loginUser = userService.getLoginUser(request);
-        //一定要返回脱敏信息
         return ResultUtils.success(userService.getLoginUserVO(loginUser));
     }
 
+    /**
+     * 用户注销
+     *
+     * @param request 请求对象
+     * @return
+     */
     @PostMapping("/logout")
     public BaseResponse<Boolean> userLogout(HttpServletRequest request) {
         ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR);
         boolean result = userService.userLogout(request);
         return ResultUtils.success(result);
     }
-
 
     /**
      * 创建用户

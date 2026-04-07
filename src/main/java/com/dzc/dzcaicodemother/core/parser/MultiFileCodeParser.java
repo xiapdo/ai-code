@@ -6,9 +6,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 多文件代码解析器（HTML + CSS + JS） 策略模式
+ * 多文件代码解析器（HTML + CSS + JS）
  *
- * @author dzc
+ *   @author dzc
  */
 public class MultiFileCodeParser implements CodeParser<MultiFileCodeResult> {
 

@@ -2,6 +2,9 @@ package com.dzc.dzcaicodemother.common;
 
 import com.dzc.dzcaicodemother.exception.ErrorCode;
 
+/**
+ * 快速构造响应结果的工具类
+ */
 public class ResultUtils {
 
     /**

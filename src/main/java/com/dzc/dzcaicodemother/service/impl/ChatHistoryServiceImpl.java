@@ -2,19 +2,18 @@ package com.dzc.dzcaicodemother.service.impl;
 
 import cn.hutool.core.collection.CollUtil;
 import cn.hutool.core.util.StrUtil;
-import com.dzc.dzcaicodemother.constant.UserConstant;
-import com.dzc.dzcaicodemother.exception.ErrorCode;
-import com.dzc.dzcaicodemother.exception.ThrowUtils;
-import com.dzc.dzcaicodemother.model.dto.chathistory.ChatHistoryQueryRequest;
-import com.dzc.dzcaicodemother.model.entity.App;
-import com.dzc.dzcaicodemother.model.entity.User;
-import com.dzc.dzcaicodemother.model.enums.ChatHistoryMessageTypeEnum;
-import com.dzc.dzcaicodemother.service.AppService;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
-import com.dzc.dzcaicodemother.model.entity.ChatHistory;
+import com.dzc.dzcaicodemother.exception.ErrorCode;
+import com.dzc.dzcaicodemother.exception.ThrowUtils;
 import com.dzc.dzcaicodemother.mapper.ChatHistoryMapper;
+import com.dzc.dzcaicodemother.model.dto.chathistory.ChatHistoryQueryRequest;
+import com.dzc.dzcaicodemother.model.entity.App;
+import com.dzc.dzcaicodemother.model.entity.ChatHistory;
+import com.dzc.dzcaicodemother.model.entity.User;
+import com.dzc.dzcaicodemother.model.enums.ChatHistoryMessageTypeEnum;
+import com.dzc.dzcaicodemother.service.AppService;
 import com.dzc.dzcaicodemother.service.ChatHistoryService;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.UserMessage;
@@ -28,34 +27,29 @@ import java.time.LocalDateTime;
 import java.util.List;
 
 /**
- *  服务层实现。
+ * 对话历史 服务层实现。
  *
  * @author dzc
  */
 @Service
 @Slf4j
-public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatHistory>  implements ChatHistoryService{
+public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatHistory> implements ChatHistoryService {
 
     @Resource
     @Lazy
     private AppService appService;
-    /**
-     * AI/USER 对话历史
-     * @param appId
-     * @param message
-     * @param messageType
-     * @param userId
-     * @return
-     */
+
     @Override
     public boolean addChatMessage(Long appId, String message, String messageType, Long userId) {
+        // 基础校验
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用ID不能为空");
         ThrowUtils.throwIf(StrUtil.isBlank(message), ErrorCode.PARAMS_ERROR, "消息内容不能为空");
         ThrowUtils.throwIf(StrUtil.isBlank(messageType), ErrorCode.PARAMS_ERROR, "消息类型不能为空");
         ThrowUtils.throwIf(userId == null || userId <= 0, ErrorCode.PARAMS_ERROR, "用户ID不能为空");
         // 验证消息类型是否有效
         ChatHistoryMessageTypeEnum messageTypeEnum = ChatHistoryMessageTypeEnum.getEnumByValue(messageType);
-        ThrowUtils.throwIf(messageTypeEnum == null, ErrorCode.PARAMS_ERROR, "不支持的消息类型: " + messageType);
+        ThrowUtils.throwIf(messageTypeEnum == null, ErrorCode.PARAMS_ERROR, "不支持的消息类型");
+        // 插入数据库
         ChatHistory chatHistory = ChatHistory.builder()
                 .appId(appId)
                 .message(message)
@@ -65,12 +59,6 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         return this.save(chatHistory);
     }
 
-    /**
-     *关联删除
-     *
-     * @param appId
-     * @return
-     */
     @Override
     public boolean deleteByAppId(Long appId) {
         ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用ID不能为空");
@@ -79,17 +67,31 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         return this.remove(queryWrapper);
     }
 
-    /**
-     *  历史对话加载
-     * @param appId
-     * @param chatMemory
-     * @param maxCount
-     * @return
-     */
+    @Override
+    public Page<ChatHistory> listAppChatHistoryByPage(Long appId, int pageSize,
+                                                      LocalDateTime lastCreateTime,
+                                                      User loginUser) {
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用ID不能为空");
+        ThrowUtils.throwIf(pageSize <= 0 || pageSize > 50, ErrorCode.PARAMS_ERROR, "页面大小必须在1-50之间");
+        ThrowUtils.throwIf(loginUser == null, ErrorCode.NOT_LOGIN_ERROR);
+        // 验证权限：只有应用创建者和管理员可以查看
+        App app = appService.getById(appId);
+        ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR, "应用不存在");
+        //boolean isAdmin = UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole());
+        //boolean isCreator = app.getUserId().equals(loginUser.getId());
+        //ThrowUtils.throwIf(!isAdmin , ErrorCode.NO_AUTH_ERROR, "无权查看该应用的对话历史");
+        // 构建查询条件
+        ChatHistoryQueryRequest queryRequest = new ChatHistoryQueryRequest();
+        queryRequest.setAppId(appId);
+        queryRequest.setLastCreateTime(lastCreateTime);
+        QueryWrapper queryWrapper = this.getQueryWrapper(queryRequest);
+        // 查询数据
+        return this.page(Page.of(1, pageSize), queryWrapper);
+    }
+
     @Override
     public int loadChatHistoryToMemory(Long appId, MessageWindowChatMemory chatMemory, int maxCount) {
         try {
-            // 直接构造查询条件，起始点为 1 而不是 0，用于排除最新的用户消息
             QueryWrapper queryWrapper = QueryWrapper.create()
                     .eq(ChatHistory::getAppId, appId)
                     .orderBy(ChatHistory::getCreateTime, false)
@@ -98,9 +100,9 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
             if (CollUtil.isEmpty(historyList)) {
                 return 0;
             }
-            // 反转列表，确保按时间正序（老的在前，新的在后）
+            // 反转列表，确保按照时间正序（老的在前，新的在后）
             historyList = historyList.reversed();
-            // 按时间顺序添加到记忆中
+            // 按照时间顺序将消息添加到记忆中
             int loadedCount = 0;
             // 先清理历史缓存，防止重复加载
             chatMemory.clear();
@@ -112,7 +114,7 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
                 }
                 loadedCount++;
             }
-            log.info("成功为 appId: {} 加载了 {} 条历史对话", appId, loadedCount);
+            log.info("成功为 appId: {} 加载 {} 条历史消息", appId, loadedCount);
             return loadedCount;
         } catch (Exception e) {
             log.error("加载历史对话失败，appId: {}, error: {}", appId, e.getMessage(), e);
@@ -120,38 +122,6 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
             return 0;
         }
     }
-
-
-    /**
-     * 游标查询
-     * @param appId
-     * @param pageSize
-     * @param lastCreateTime
-     * @param loginUser
-     * @return
-     */
-    @Override
-    public Page<ChatHistory> listAppChatHistoryByPage(Long appId, int pageSize,
-                                                      LocalDateTime lastCreateTime,
-                                                      User loginUser) {
-        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用ID不能为空");
-        ThrowUtils.throwIf(pageSize <= 0 || pageSize > 50, ErrorCode.PARAMS_ERROR, "页面大小必须在1-50之间");
-        ThrowUtils.throwIf(loginUser == null, ErrorCode.NOT_LOGIN_ERROR);
-        // 验证权限：只有应用创建者和管理员可以查看
-        App app = appService.getById(appId);
-        ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR, "应用不存在");
-        boolean isAdmin = UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole());
-        boolean isCreator = app.getUserId().equals(loginUser.getId());
-        ThrowUtils.throwIf(!isAdmin && !isCreator, ErrorCode.NO_AUTH_ERROR, "无权查看该应用的对话历史");
-        // 构建查询条件
-        ChatHistoryQueryRequest queryRequest = new ChatHistoryQueryRequest();
-        queryRequest.setAppId(appId);
-        queryRequest.setLastCreateTime(lastCreateTime);
-        QueryWrapper queryWrapper = this.getQueryWrapper(queryRequest);
-        // 查询数据
-        return this.page(Page.of(1, pageSize), queryWrapper);
-    }
-
 
     /**
      * 获取查询包装类
@@ -192,8 +162,4 @@ public class ChatHistoryServiceImpl extends ServiceImpl<ChatHistoryMapper, ChatH
         }
         return queryWrapper;
     }
-
-
-
-
 }

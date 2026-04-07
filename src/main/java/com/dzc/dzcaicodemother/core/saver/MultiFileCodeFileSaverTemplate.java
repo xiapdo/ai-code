@@ -1,20 +1,20 @@
 package com.dzc.dzcaicodemother.core.saver;
 
 import cn.hutool.core.util.StrUtil;
-import com.dzc.dzcaicodemother.ai.enums.CodeGenTypeEnum;
 import com.dzc.dzcaicodemother.ai.model.MultiFileCodeResult;
 import com.dzc.dzcaicodemother.exception.BusinessException;
 import com.dzc.dzcaicodemother.exception.ErrorCode;
+import com.dzc.dzcaicodemother.model.enums.CodeGenTypeEnum;
 
 /**
  * 多文件代码保存器
  *
- * @author yupi
+ *   @author dzc
  */
 public class MultiFileCodeFileSaverTemplate extends CodeFileSaverTemplate<MultiFileCodeResult> {
 
     @Override
-    public CodeGenTypeEnum getCodeType() {
+    protected CodeGenTypeEnum getCodeType() {
         return CodeGenTypeEnum.MULTI_FILE;
     }
 

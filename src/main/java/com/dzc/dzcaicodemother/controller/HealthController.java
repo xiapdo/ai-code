@@ -8,12 +8,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/health")
+@Deprecated
 public class HealthController {
-
 
     @GetMapping("/")
     public BaseResponse<String> healthCheck() {
         return ResultUtils.success("ok");
     }
-
 }
