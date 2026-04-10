@@ -108,4 +108,16 @@ public class App implements Serializable {
     @Column(value = "isDelete", isLogicDelete = true)
     private Integer isDelete;
 
+    /**
+     * 当前版本号
+     */
+    @Column("versionNo")
+    private Integer versionNo;
+
+    /**
+     * 当前版本快照ID
+     */
+    @Column("currentVersionId")
+    private Long currentVersionId;
+
 }

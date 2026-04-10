@@ -50,6 +50,9 @@ create table app
     INDEX idx_userId (userId)            -- 提升基于用户 ID 的查询性能
 ) comment '应用' collate = utf8mb4_unicode_ci;
 
+ALTER TABLE `app` ADD COLUMN `versionNo` INT DEFAULT 0 COMMENT '当前版本号';
+ALTER TABLE `app` ADD COLUMN `currentVersionId` BIGINT DEFAULT NULL COMMENT '当前版本快照ID';
+
 -- 对话历史表
 create table chat_history
 (
@@ -89,3 +92,23 @@ create index idx_appId_createTime
 
 create index idx_createTime
     on chat_history_original (createTime);
+
+
+CREATE TABLE `app_version_snapshot`
+(
+    `id` bigint NOT NULL AUTO_INCREMENT,
+    `appId` bigint NOT NULL COMMENT '应用ID',
+    `versionNo` int NOT NULL COMMENT '版本号',
+    `snapshotData` json NOT NULL COMMENT '版本快照数据(JSON格式)',
+    `thumbnail` varchar(512) DEFAULT NULL COMMENT '版本缩略图URL',
+    `changeSummary` varchar(500) DEFAULT NULL COMMENT '变更摘要',
+    `chatHistoryId` bigint DEFAULT NULL COMMENT '对应的对话记录ID',
+    `userId` bigint NOT NULL COMMENT '创建者ID',
+    `createTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updateTime` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    `isDelete` tinyint NOT NULL DEFAULT 0 COMMENT '是否删除',
+    PRIMARY KEY (`id`),
+    KEY `idx_appId` (`appId`),
+    KEY `idx_versionNo` (`versionNo`),
+    KEY `idx_userId` (`userId`)
+) COMMENT='应用版本快照表' collate = utf8mb4_unicode_ci;

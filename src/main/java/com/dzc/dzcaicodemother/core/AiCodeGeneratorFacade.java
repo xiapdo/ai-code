@@ -14,16 +14,24 @@ import com.dzc.dzcaicodemother.core.parser.CodeParserExecutor;
 import com.dzc.dzcaicodemother.core.saver.CodeFileSaverExecutor;
 import com.dzc.dzcaicodemother.exception.BusinessException;
 import com.dzc.dzcaicodemother.exception.ErrorCode;
+import com.dzc.dzcaicodemother.model.entity.App;
+import com.dzc.dzcaicodemother.model.entity.ChatHistory;
 import com.dzc.dzcaicodemother.model.enums.CodeGenTypeEnum;
+import com.dzc.dzcaicodemother.service.AppService;
+import com.dzc.dzcaicodemother.service.AppVersionSnapshotService;
+import com.dzc.dzcaicodemother.service.ChatHistoryService;
+import com.dzc.dzcaicodemother.utils.VersionSnapshotUtils;
 import dev.langchain4j.model.chat.response.ChatResponse;
 import dev.langchain4j.service.TokenStream;
 import dev.langchain4j.service.tool.ToolExecution;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
 import java.io.File;
+import java.util.List;
 
 /**
  * AI 代码生成门面类，组合代码生成和保存功能
@@ -38,12 +46,24 @@ public class AiCodeGeneratorFacade {
     @Resource
     private VueProjectBuilder vueProjectBuilder;
 
+    @Lazy
+    @Resource
+    private AppVersionSnapshotService appVersionSnapshotService;
+
+    @Lazy
+    @Resource
+    private AppService appService;
+
+    @Lazy
+    @Resource
+    private ChatHistoryService chatHistoryService;
+
     /**
-     * 统一入口：根据类型生成并保存代码
+     * 统一入口：根据类型生成并保存代码chat_history
      *
-     * @param userMessage     用户提示词
+     * @param userMessage 用户提示词
      * @param codeGenTypeEnum 生成类型
-     * @param appId           应用 ID
+     * @param appId 应用 ID
      * @return 保存的目录
      */
     public File generateAndSaveCode(String userMessage, CodeGenTypeEnum codeGenTypeEnum, Long appId) {
@@ -71,9 +91,9 @@ public class AiCodeGeneratorFacade {
     /**
      * 统一入口：根据类型生成并保存代码（流式）
      *
-     * @param userMessage     用户提示词
+     * @param userMessage 用户提示词
      * @param codeGenTypeEnum 生成类型
-     * @param appId           应用 ID
+     * @param appId 应用 ID
      * @return 保存的目录
      */
     public Flux<String> generateAndSaveCodeStream(String userMessage, CodeGenTypeEnum codeGenTypeEnum, Long appId) {
@@ -106,43 +126,45 @@ public class AiCodeGeneratorFacade {
      * 将 TokenStream 转换为 Flux<String>，并传递工具调用信息
      *
      * @param tokenStream TokenStream 对象
-     * @param appId       应用 ID
+     * @param appId 应用 ID
      * @return Flux<String> 流式响应
      */
     private Flux<String> processTokenStream(TokenStream tokenStream, Long appId) {
         return Flux.create(sink -> {
             tokenStream.onPartialResponse((String partialResponse) -> {
-                        AiResponseMessage aiResponseMessage = new AiResponseMessage(partialResponse);
-                        sink.next(JSONUtil.toJsonStr(aiResponseMessage));
-                    })
-                    .onPartialToolExecutionRequest((index, toolExecutionRequest) -> {
-                        ToolRequestMessage toolRequestMessage = new ToolRequestMessage(toolExecutionRequest);
-                        sink.next(JSONUtil.toJsonStr(toolRequestMessage));
-                    })
-                    .onToolExecuted((ToolExecution toolExecution) -> {
-                        ToolExecutedMessage toolExecutedMessage = new ToolExecutedMessage(toolExecution);
-                        sink.next(JSONUtil.toJsonStr(toolExecutedMessage));
-                    })
-                    .onCompleteResponse((ChatResponse response) -> {
-                        // 执行 Vue 项目构建（同步执行，确保预览时项目已就绪）
-                        String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + "/vue_project_" + appId;
-                        vueProjectBuilder.buildProject(projectPath);
-                        sink.complete();
-                    })
-                    .onError((Throwable error) -> {
-                        error.printStackTrace();
-                        sink.error(error);
-                    })
-                    .start();
+                AiResponseMessage aiResponseMessage = new AiResponseMessage(partialResponse);
+                sink.next(JSONUtil.toJsonStr(aiResponseMessage));
+            })
+            .onPartialToolExecutionRequest((index, toolExecutionRequest) -> {
+                ToolRequestMessage toolRequestMessage = new ToolRequestMessage(toolExecutionRequest);
+                sink.next(JSONUtil.toJsonStr(toolRequestMessage));
+            })
+            .onToolExecuted((ToolExecution toolExecution) -> {
+                ToolExecutedMessage toolExecutedMessage = new ToolExecutedMessage(toolExecution);
+                sink.next(JSONUtil.toJsonStr(toolExecutedMessage));
+            })
+            .onCompleteResponse((ChatResponse response) -> {
+                // 执行 Vue 项目构建（同步执行，确保预览时项目已就绪）
+                String projectPath = AppConstant.CODE_OUTPUT_ROOT_DIR + "/vue_project_" + appId;
+                vueProjectBuilder.buildProject(projectPath);
+                // 保存版本快照
+                saveVersionSnapshot(appId);
+                sink.complete();
+            })
+            .onError((Throwable error) -> {
+                error.printStackTrace();
+                sink.error(error);
+            })
+            .start();
         });
     }
 
     /**
      * 通用流式代码处理方法
      *
-     * @param codeStream  代码流
+     * @param codeStream 代码流
      * @param codeGenType 代码生成类型
-     * @param appId       应用 ID
+     * @param appId 应用 ID
      * @return 流式响应
      */
     private Flux<String> processCodeStream(Flux<String> codeStream, CodeGenTypeEnum codeGenType, Long appId) {
@@ -160,9 +182,76 @@ public class AiCodeGeneratorFacade {
                 // 使用执行器保存代码
                 File saveDir = CodeFileSaverExecutor.executeSaver(parsedResult, codeGenType, appId);
                 log.info("保存成功，目录为：{}", saveDir.getAbsolutePath());
+                // 保存版本快照
+                saveVersionSnapshot(appId);
             } catch (Exception e) {
                 log.error("保存失败: {}", e.getMessage());
             }
         });
+    }
+
+    /**
+     * 保存版本快照
+     *
+     * @param appId 应用ID
+     */
+    private void saveVersionSnapshot(Long appId) {
+        try {
+            App app = appService.getById(appId);
+            if (app == null) {
+                log.error("保存版本快照失败：应用不存在，appId={}", appId);
+                return;
+            }
+
+            String codeGenType = app.getCodeGenType();
+            String sourceDirName = codeGenType + "_" + appId;
+            String sourceDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + sourceDirName;
+
+            // 从目录创建快照数据
+            String snapshotData = VersionSnapshotUtils.createSnapshotFromDirectory(sourceDirPath);
+            if (snapshotData == null) {
+                log.error("保存版本快照失败：无法创建快照数据，appId={}", appId);
+                return;
+            }
+
+            // 获取最新的对话历史ID
+            Long chatHistoryId = getLatestChatHistoryId(appId);
+
+            // 保存版本快照
+            appVersionSnapshotService.saveVersionSnapshot(
+                    appId,
+                    snapshotData,
+                    "AI 生成",
+                    chatHistoryId,
+                    app.getUserId()
+            );
+            log.info("版本快照保存成功，appId={}", appId);
+        } catch (Exception e) {
+            log.error("保存版本快照失败，appId={}", appId, e);
+        }
+    }
+
+    /**
+     * 获取应用最新的对话历史ID
+     *
+     * @param appId 应用ID
+     * @return 最新对话历史ID，如果没有则返回null
+     */
+    private Long getLatestChatHistoryId(Long appId) {
+        try {
+            List<ChatHistory> chatHistories = chatHistoryService.list(
+                    new com.mybatisflex.core.query.QueryWrapper()
+                            .eq("appId", appId)
+                            .eq("messageType", "ai")
+                            .orderBy("createTime", false)
+                            .limit(1)
+            );
+            if (chatHistories != null && !chatHistories.isEmpty()) {
+                return chatHistories.get(0).getId();
+            }
+        } catch (Exception e) {
+            log.warn("获取最新对话历史ID失败，appId={}", appId, e);
+        }
+        return null;
     }
 }

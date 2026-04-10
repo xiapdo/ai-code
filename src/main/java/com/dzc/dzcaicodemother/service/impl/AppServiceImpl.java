@@ -31,6 +31,7 @@ import com.dzc.dzcaicodemother.monitor.MonitorContextHolder;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
 
@@ -51,7 +52,7 @@ import java.util.stream.Collectors;
 @Slf4j
 public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppService {
 
-    @Value("${code.deploy-host:http://localhost}")
+    @Value("${deploy-host:http://localhost}")
     private String deployHost;
 
     @Resource
@@ -72,11 +73,15 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
     @Resource
     private ScreenshotService screenshotService;
 
-    @Resource
-    private AiCodeGenTypeRoutingServiceFactory aiCodeGenTypeRoutingServiceFactory;
+@Resource
+private AiCodeGenTypeRoutingServiceFactory aiCodeGenTypeRoutingServiceFactory;
 
-    @Resource
-    private ChatHistoryOriginalService chatHistoryOriginalService;
+@Resource
+private ChatHistoryOriginalService chatHistoryOriginalService;
+
+@Resource
+@Lazy
+private AppVersionSnapshotService appVersionSnapshotService;
 
     @Override
     public Flux<String> chatToGenCode(Long appId, String message, User loginUser) {
@@ -186,17 +191,35 @@ public class AppServiceImpl extends ServiceImpl<AppMapper, App> implements AppSe
         } catch (Exception e) {
             throw new BusinessException(ErrorCode.SYSTEM_ERROR, "应用部署失败：" + e.getMessage());
         }
-        // 9. 更新数据库
-        App updateApp = new App();
-        updateApp.setId(appId);
-        updateApp.setDeployKey(deployKey);
-        updateApp.setDeployedTime(LocalDateTime.now());
-        boolean updateResult = this.updateById(updateApp);
-        ThrowUtils.throwIf(!updateResult, ErrorCode.OPERATION_ERROR, "更新应用部署信息失败");
-        // 10. 构建应用访问 URL
-        String appDeployUrl = String.format("%s/%s/", deployHost, deployKey);        // 11. 异步生成截图并且更新应用封面
-        generateAppScreenshotAsync(appId, appDeployUrl);
-        return appDeployUrl;
+// 9. 更新数据库
+App updateApp = new App();
+updateApp.setId(appId);
+updateApp.setDeployKey(deployKey);
+updateApp.setDeployedTime(LocalDateTime.now());
+boolean updateResult = this.updateById(updateApp);
+ThrowUtils.throwIf(!updateResult, ErrorCode.OPERATION_ERROR, "更新应用部署信息失败");
+// 10. 构建应用访问 URL
+String appDeployUrl = String.format("%s/%s/", deployHost, deployKey); // 11. 异步生成截图并且更新应用封面
+generateAppScreenshotAsync(appId, appDeployUrl);
+// 12. 异步更新当前版本的缩略图
+final Long currentVersionId = app.getCurrentVersionId();
+if (currentVersionId != null) {
+    Thread.startVirtualThread(() -> {
+        try {
+            String thumbnailUrl = screenshotService.generateAndUploadScreenshot(appDeployUrl);
+            if (StrUtil.isNotBlank(thumbnailUrl)) {
+                com.dzc.dzcaicodemother.model.entity.AppVersionSnapshot updateSnapshot = new com.dzc.dzcaicodemother.model.entity.AppVersionSnapshot();
+                updateSnapshot.setId(currentVersionId);
+                updateSnapshot.setThumbnail(thumbnailUrl);
+                appVersionSnapshotService.updateById(updateSnapshot);
+                log.info("部署后更新版本缩略图成功: appId={}, versionId={}, thumbnailUrl={}", appId, currentVersionId, thumbnailUrl);
+            }
+        } catch (Exception e) {
+            log.error("部署后更新版本缩略图失败: appId={}, versionId={}", appId, currentVersionId, e);
+        }
+    });
+}
+return appDeployUrl;
     }
 
     /**
