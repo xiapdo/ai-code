@@ -1,5 +1,6 @@
 package com.dzc.dzcaicodemother.model.vo;
 
+import com.mybatisflex.annotation.Column;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -32,6 +33,18 @@ public class UserVO implements Serializable {
      * 用户简介
      */
     private String userProfile;
+
+    /**
+     * 手机号
+     */
+    @Column("phone")
+    private String phone;
+
+    /**
+     * 邮箱
+     */
+    @Column("email")
+    private String email;
 
     /**
      * 用户角色：user/admin

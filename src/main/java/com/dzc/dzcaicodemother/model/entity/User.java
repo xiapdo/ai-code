@@ -1,21 +1,19 @@
 package com.dzc.dzcaicodemother.model.entity;
 
+import java.io.Serial;
+import java.io.Serializable;
+import java.time.LocalDateTime;
+
 import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
-import java.io.Serializable;
-import java.time.LocalDateTime;
-
-import java.io.Serial;
-
 import com.mybatisflex.core.keygen.KeyGenerators;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import javax.crypto.KeyGenerator;
 
 /**
  *  实体类。
@@ -66,6 +64,18 @@ public class User implements Serializable {
      */
     @Column("userProfile")
     private String userProfile;
+
+    /**
+     * 手机号
+     */
+    @Column("phone")
+    private String phone;
+
+    /**
+     * 邮箱
+     */
+    @Column("email")
+    private String email;
 
     /**
      * 用户角色：user/admin

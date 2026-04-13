@@ -1,5 +1,6 @@
 package com.dzc.dzcaicodemother.service;
 
+import com.dzc.dzcaicodemother.model.dto.user.UserRegisterRequest;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.core.service.IService;
 import com.dzc.dzcaicodemother.model.dto.user.UserQueryRequest;
@@ -25,7 +26,7 @@ public interface UserService extends IService<User> {
      * @param checkPassword 校验密码
      * @return 新用户 id
      */
-    long userRegister(String userAccount, String userPassword, String checkPassword,String userName);
+    long userRegister(UserRegisterRequest userRegisterRequest);
 
     /**
      * 获取脱敏的已登录用户信息

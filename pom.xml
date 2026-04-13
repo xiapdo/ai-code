@@ -70,6 +70,20 @@
             <artifactId>langchain4j-community-redis-spring-boot-starter</artifactId>
             <version>1.1.0-beta7</version>
         </dependency>
+
+        <!-- websocket -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-websocket</artifactId>
+        </dependency>
+
+        <!-- 高性能无锁队列 -->
+        <dependency>
+            <groupId>com.lmax</groupId>
+            <artifactId>disruptor</artifactId>
+            <version>3.4.2</version>
+        </dependency>
+
         <!-- LangGraph4j -->
         <dependency>
             <groupId>org.bsc.langgraph4j</groupId>
@@ -173,6 +187,7 @@
                         <path>
                             <groupId>org.projectlombok</groupId>
                             <artifactId>lombok</artifactId>
+                            <version>1.18.36</version>
                         </path>
                     </annotationProcessorPaths>
                 </configuration>

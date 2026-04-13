@@ -112,3 +112,70 @@ CREATE TABLE `app_version_snapshot`
     KEY `idx_versionNo` (`versionNo`),
     KEY `idx_userId` (`userId`)
 ) COMMENT='应用版本快照表' collate = utf8mb4_unicode_ci;
+
+-- 群聊表
+CREATE TABLE IF NOT EXISTS chat_room (
+     id BIGINT AUTO_INCREMENT COMMENT '群聊ID' PRIMARY KEY,
+     roomName VARCHAR(256) NOT NULL COMMENT '群聊名称',
+     roomAvatar VARCHAR(512) COMMENT '群聊头像URL',
+     description VARCHAR(512) COMMENT '群聊描述',
+     inviteCode VARCHAR(24) UNIQUE COMMENT '邀请码（24位UUID）',
+     inviteExpiryTime DATETIME COMMENT '邀请码过期时间',
+     ownerUserId BIGINT NOT NULL COMMENT '创建者ID',
+     memberCount INT DEFAULT 0 NOT NULL COMMENT '当前成员数',
+     status TINYINT DEFAULT 1 NOT NULL COMMENT '1-正常 2-解散',
+     isDeleted TINYINT DEFAULT 0 NOT NULL COMMENT '逻辑删除标记',
+     createTime DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '创建时间',
+     updateTime DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+
+     INDEX idx_owner_user_id (ownerUserId),
+     INDEX idx_status (status),
+     INDEX idx_invite_code (inviteCode),
+     INDEX idx_create_time (createTime)
+) COMMENT '群聊表' COLLATE utf8mb4_unicode_ci;
+
+ALTER table chat_room_message CHANGE  COLUMN  isDeleted isDelete TINYINT;
+
+ALTER TABLE chat_room_member
+    ADD COLUMN lastReadTime DATETIME NULL COMMENT '最后阅读时间',
+    ADD COLUMN lastActiveTime DATETIME NULL COMMENT '最后活跃时间';
+-- 为 chat_room_message 表添加 update_time 字段
+ALTER TABLE `chat_room_message`
+ADD COLUMN `updateTime` DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间';
+-- 2. 群聊成员表
+CREATE TABLE IF NOT EXISTS chat_room_member (
+    id BIGINT AUTO_INCREMENT COMMENT '主键ID' PRIMARY KEY,
+    roomId BIGINT NOT NULL COMMENT '群聊ID',
+    userId BIGINT NOT NULL COMMENT '用户ID',
+    memberRole VARCHAR(32) DEFAULT 'member' NOT NULL COMMENT '角色：owner-群主/member-成员',
+    joinTime DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '加入时间',
+    isMuted TINYINT DEFAULT 0 NOT NULL COMMENT '是否被禁言',
+    onlineStatus TINYINT DEFAULT 0 NOT NULL COMMENT '在线状态：0-离线 1-在线',
+    isDeleted TINYINT DEFAULT 0 NOT NULL COMMENT '逻辑删除标记',
+
+    UNIQUE KEY uk_room_user (roomId, userId),
+    INDEX idx_room_id (roomId),
+    INDEX idx_user_id (userId)
+) COMMENT '群聊成员表' COLLATE utf8mb4_unicode_ci;
+
+-- 3. 群聊消息表
+CREATE TABLE IF NOT EXISTS chat_room_message (
+     id BIGINT AUTO_INCREMENT COMMENT '消息ID' PRIMARY KEY,
+     roomId BIGINT NOT NULL COMMENT '群聊ID',
+     userId BIGINT COMMENT '发送者ID(null表示系统/AI消息)',
+     messageContent TEXT NOT NULL COMMENT '消息内容',
+     messageType VARCHAR(32) DEFAULT 'text' NOT NULL COMMENT 'text文本/image图片/file文件/ai_start/ai_chunk/ai_complete/system',
+     fileUrl VARCHAR(512) COMMENT '文件URL',
+     replyToId BIGINT COMMENT '回复消息ID',
+     isRevoked TINYINT DEFAULT 0 NOT NULL COMMENT '是否已撤回',
+     revokedTime DATETIME COMMENT '撤回时间',
+     createTime DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL COMMENT '发送时间',
+     isDeleted TINYINT DEFAULT 0 NOT NULL COMMENT '逻辑删除标记',
+
+     INDEX idx_room_id (roomId),
+     INDEX idx_user_id (userId),
+     INDEX idx_create_time (createTime)
+) COMMENT '群聊消息表' COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE `user` ADD COLUMN `phone` char(11) DEFAULT NULL COMMENT '手机号' AFTER `userProfile`;
+ALTER TABLE `user` ADD COLUMN `email` varchar(24) DEFAULT NULL COMMENT '邮箱' AFTER `phone`;

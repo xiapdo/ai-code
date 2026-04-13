@@ -1,7 +1,18 @@
 package com.dzc.dzcaicodemother.controller;
 
-import cn.hutool.core.bean.BeanUtil;
-import com.mybatisflex.core.paginate.Page;
+import java.io.File;
+import java.io.IOException;
+import java.util.List;
+
+import org.springframework.beans.BeanUtils;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestPart;
+import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+
 import com.dzc.dzcaicodemother.annotation.AuthCheck;
 import com.dzc.dzcaicodemother.common.BaseResponse;
 import com.dzc.dzcaicodemother.common.DeleteRequest;
@@ -10,16 +21,25 @@ import com.dzc.dzcaicodemother.constant.UserConstant;
 import com.dzc.dzcaicodemother.exception.BusinessException;
 import com.dzc.dzcaicodemother.exception.ErrorCode;
 import com.dzc.dzcaicodemother.exception.ThrowUtils;
-import com.dzc.dzcaicodemother.model.dto.user.*;
+import com.dzc.dzcaicodemother.mannger.CosManager;
+import com.dzc.dzcaicodemother.model.dto.user.UserAddRequest;
+import com.dzc.dzcaicodemother.model.dto.user.UserEditRequest;
+import com.dzc.dzcaicodemother.model.dto.user.UserLoginRequest;
+import com.dzc.dzcaicodemother.model.dto.user.UserQueryRequest;
+import com.dzc.dzcaicodemother.model.dto.user.UserRegisterRequest;
+import com.dzc.dzcaicodemother.model.dto.user.UserUpdateRequest;
 import com.dzc.dzcaicodemother.model.entity.User;
 import com.dzc.dzcaicodemother.model.vo.LoginUserVO;
 import com.dzc.dzcaicodemother.model.vo.UserVO;
 import com.dzc.dzcaicodemother.service.UserService;
+import com.dzc.dzcaicodemother.utils.ValidationUtils;
+import com.mybatisflex.core.paginate.Page;
+
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.lang.UUID;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.web.bind.annotation.*;
-
-import java.util.List;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 用户 控制层。
@@ -28,10 +48,14 @@ import java.util.List;
  */
 @RestController
 @RequestMapping("/user")
+@Slf4j
 public class UserController {
 
     @Resource
     private UserService userService;
+
+    @Resource
+    private CosManager cosManager;
 
     /**
      * 用户注册
@@ -42,11 +66,9 @@ public class UserController {
     @PostMapping("/register")
     public BaseResponse<Long> userRegister(@RequestBody UserRegisterRequest userRegisterRequest) {
         ThrowUtils.throwIf(userRegisterRequest == null, ErrorCode.PARAMS_ERROR);
-        String userAccount = userRegisterRequest.getUserAccount();
-        String userName = userRegisterRequest.getUserName();
-        String userPassword = userRegisterRequest.getUserPassword();
-        String checkPassword = userRegisterRequest.getCheckPassword();
-        long result = userService.userRegister(userAccount, userPassword, checkPassword, userName);
+        ValidationUtils.validatePhone(userRegisterRequest.getPhone());
+        ValidationUtils.validateEmail(userRegisterRequest.getEmail());
+        long result = userService.userRegister(userRegisterRequest);
         return ResultUtils.success(result);
     }
 
@@ -83,6 +105,38 @@ public class UserController {
         ThrowUtils.throwIf(request == null, ErrorCode.PARAMS_ERROR);
         boolean result = userService.userLogout(request);
         return ResultUtils.success(result);
+    }
+
+    /**
+     * 上传用户头像
+     *
+     * @param file 文件
+     * @param request 请求对象
+     * @return 头像 URL
+     */
+    @PostMapping("/upload/avatar")
+    public BaseResponse<String> uploadAvatar(@RequestPart("file") MultipartFile file, HttpServletRequest request) {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR, "文件不能为空");
+        }
+        User loginUser = userService.getLoginUser(request);
+        String originalFilename = file.getOriginalFilename();
+        String suffix = originalFilename != null && originalFilename.contains(".")
+                ? originalFilename.substring(originalFilename.lastIndexOf("."))
+                : ".png";
+        String uuid = UUID.randomUUID().toString().replace("-", "");
+        String key = String.format("/avatar/%s/%s%s", loginUser.getId(), uuid, suffix);
+        try {
+            File tempFile = File.createTempFile("avatar-", suffix);
+            file.transferTo(tempFile);
+            String avatarUrl = cosManager.uploadFile(key, tempFile);
+            tempFile.delete();
+            log.info("用户 {} 上传头像成功: {}", loginUser.getId(), avatarUrl);
+            return ResultUtils.success(avatarUrl);
+        } catch (IOException e) {
+            log.error("上传头像失败", e);
+            throw new BusinessException(ErrorCode.SYSTEM_ERROR, "上传头像失败");
+        }
     }
 
     /**
@@ -136,6 +190,29 @@ public class UserController {
         }
         boolean b = userService.removeById(deleteRequest.getId());
         return ResultUtils.success(b);
+    }
+
+    /**
+     * 编辑用户信息（支持用户和管理员）
+     *
+     * @param userEditRequest 编辑请求（包含需要更新的字段）
+     * @param request HTTP 请求
+     * @return 是否成功
+     */
+    @PostMapping("/edit")
+    public BaseResponse<Boolean> editUser(@RequestBody UserEditRequest userEditRequest, HttpServletRequest request) {
+        if (userEditRequest == null) {
+            throw new BusinessException(ErrorCode.PARAMS_ERROR);
+        }
+        ValidationUtils.validatePhone(userEditRequest.getPhone());
+        ValidationUtils.validateEmail(userEditRequest.getEmail());
+        User loginUser = userService.getLoginUser(request);
+        User user = new User();
+        BeanUtils.copyProperties(userEditRequest, user);
+        user.setId(loginUser.getId());
+        boolean result = userService.updateById(user);
+        ThrowUtils.throwIf(!result, ErrorCode.OPERATION_ERROR);
+        return ResultUtils.success(true);
     }
 
     /**

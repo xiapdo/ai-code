@@ -1,8 +1,10 @@
 package com.dzc.dzcaicodemother.model.dto.user;
 
-import lombok.Data;
-
 import java.io.Serializable;
+
+import com.mybatisflex.annotation.Column;
+
+import lombok.Data;
 
 @Data
 public class UserLoginRequest implements Serializable {
@@ -18,4 +20,16 @@ public class UserLoginRequest implements Serializable {
      * 密码
      */
     private String userPassword;
+
+    /**
+     * 手机号
+     */
+    @Column("phone")
+    private String phone;
+
+    /**
+     * 邮箱
+     */
+    @Column("email")
+    private String email;
 }

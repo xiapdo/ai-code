@@ -9,6 +9,7 @@ import com.dzc.dzcaicodemother.exception.BusinessException;
 import com.dzc.dzcaicodemother.exception.ErrorCode;
 import com.dzc.dzcaicodemother.mapper.UserMapper;
 import com.dzc.dzcaicodemother.model.dto.user.UserQueryRequest;
+import com.dzc.dzcaicodemother.model.dto.user.UserRegisterRequest;
 import com.dzc.dzcaicodemother.model.entity.User;
 import com.dzc.dzcaicodemother.model.enums.UserRoleEnum;
 import com.dzc.dzcaicodemother.model.vo.LoginUserVO;
@@ -38,16 +39,21 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     private static final Pattern pattern = Pattern.compile(PASSWORD_PATTERN);
 
     @Override
-    public long userRegister(String userAccount, String userPassword, String checkPassword,String userName) {
+    public long userRegister(UserRegisterRequest userRegisterRequest) {
+        String userAccount = userRegisterRequest.getUserAccount();
+        String userPassword = userRegisterRequest.getUserPassword();
+        String checkPassword = userRegisterRequest.getCheckPassword();
+        String userName = userRegisterRequest.getUserName();
+        String phone = userRegisterRequest.getPhone();
+        String email = userRegisterRequest.getEmail();
         // 1. 校验参数
         if (StrUtil.hasBlank(userAccount, userPassword, checkPassword)) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "参数为空");
         }
 
-        if(!pattern.matcher(userPassword).matches()){
+        if (!pattern.matcher(userPassword).matches()) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "必须包含大写字母、小写字母和特殊字符");
         }
-
 
         if (userAccount.length() < 4) {
             throw new BusinessException(ErrorCode.PARAMS_ERROR, "账号长度过短");
@@ -73,6 +79,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         user.setUserPassword(encryptPassword);
         user.setUserName(userName);
         user.setUserRole(UserRoleEnum.USER.getValue());
+        user.setPhone(phone);
+        user.setEmail(email);
         boolean saveResult = this.save(user);
         if (!saveResult) {
             throw new BusinessException(ErrorCode.OPERATION_ERROR, "注册失败，数据库错误");
