@@ -10,6 +10,18 @@
         <a-input v-model:value="formState.userName" placeholder="请输入名称" />
       </a-form-item>
       <a-form-item
+        name="phone"
+        :rules="[{ validator: validatePhone, trigger: 'blur' }]"
+      >
+        <a-input v-model:value="formState.phone" placeholder="请输入手机号（选填）" />
+      </a-form-item>
+      <a-form-item
+        name="email"
+        :rules="[{ validator: validateEmail, trigger: 'blur' }]"
+      >
+        <a-input v-model:value="formState.email" placeholder="请输入邮箱（选填）" />
+      </a-form-item>
+      <a-form-item
         name="userPassword"
         :rules="[
           { required: true, message: '请输入密码' },
@@ -42,6 +54,7 @@
 <script setup lang="ts">
 import { userRegister } from '@/api/userController.ts'
 import { message } from 'ant-design-vue'
+import type { Rule } from 'ant-design-vue'
 import { reactive } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -52,14 +65,30 @@ const formState = reactive<API.UserRegisterRequest>({
   userPassword: '',
   userName: '',
   checkPassword: '',
+  phone: '',
+  email: '',
 })
 
-/**
- * 验证确认密码
- * @param rule
- * @param value
- * @param callback
- */
+const validatePhone = (_rule: Rule, value: string) => {
+  if (value && value.trim() !== '') {
+    const phoneRegex = /^1[3-9]\d{9}$/
+    if (!phoneRegex.test(value)) {
+      return Promise.reject('请输入正确的手机号（11位，以1开头）')
+    }
+  }
+  return Promise.resolve()
+}
+
+const validateEmail = (_rule: Rule, value: string) => {
+  if (value && value.trim() !== '') {
+    const emailRegex = /^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/
+    if (!emailRegex.test(value)) {
+      return Promise.reject('请输入正确的邮箱格式')
+    }
+  }
+  return Promise.resolve()
+}
+
 const validateCheckPassword = (rule: unknown, value: string, callback: (error?: Error) => void) => {
   if (value && value !== formState.userPassword) {
     callback(new Error('两次输入密码不一致'))
@@ -68,13 +97,8 @@ const validateCheckPassword = (rule: unknown, value: string, callback: (error?: 
   }
 }
 
-/**
- * 提交表单
- * @param values
- */
 const handleSubmit = async (values: API.UserRegisterRequest) => {
   const res = await userRegister(values)
-  // 注册成功，跳转到登录页面
   if (res.data.code === 0) {
     message.success('注册成功')
     router.push({

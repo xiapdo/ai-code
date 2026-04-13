@@ -66,6 +66,11 @@ onBeforeUnmount(() => {
   box-sizing: border-box;
 }
 
+html {
+  overflow-x: hidden;
+  scrollbar-gutter: stable;
+}
+
 body {
   margin: 0;
   padding: 0;
@@ -82,10 +87,7 @@ body {
     radial-gradient(circle at 60% 80%, rgba(249, 168, 212, 0.35), transparent 60%), #f0fdf4;
   background-size: 140% 140%;
   animation: breezeGlow 18s ease-in-out infinite;
-}
-
-html {
-  overflow-x: hidden;
+  will-change: transform;
 }
 
 body::before,

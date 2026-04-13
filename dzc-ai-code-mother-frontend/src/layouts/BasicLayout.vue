@@ -60,6 +60,7 @@ import GlobalHeader from '@/components/GlobalHeader.vue'
 .main-content {
   width: 100%;
   padding: 24px 24px 48px;
+  padding-top: 88px;
   background: transparent;
   margin: 0;
 }

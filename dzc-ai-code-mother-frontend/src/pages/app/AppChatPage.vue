@@ -9,7 +9,13 @@
         </a-tag>
       </div>
       <div class="header-right">
-        <a-button type="default" @click="showAppDetail">
+<a-button type="default" @click="showVersionHistory" :disabled="!isOwner">
+    <template #icon>
+      <HistoryOutlined />
+</template>
+        历史版本
+      </a-button>
+      <a-button type="default" @click="showAppDetail">
           <template #icon>
             <InfoCircleOutlined />
           </template>
@@ -206,6 +212,13 @@
       :deploy-url="deployUrl"
       @open-site="openDeployedSite"
     />
+
+    <!-- 版本历史抽屉 -->
+    <VersionHistoryDrawer
+      v-model:open="versionHistoryVisible"
+      :app-id="appId"
+      @rollback-success="handleRollbackSuccess"
+    />
   </div>
 </template>
 
@@ -220,7 +233,7 @@ import request from '@/request'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { CodeGenTypeEnum, formatCodeGenType } from '@/utils/codeGenTypes'
 import { message } from 'ant-design-vue'
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 
 import { default as chatAvatar } from '@/assets/12.jpg'
@@ -228,6 +241,7 @@ import { default as defaultAvatar } from '@/assets/aiAvatar.png'
 import AppDetailModal from '@/components/AppDetailModal.vue'
 import DeploySuccessModal from '@/components/DeploySuccessModal.vue'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
+import VersionHistoryDrawer from '@/components/VersionHistoryDrawer.vue'
 import { API_BASE_URL, getStaticPreviewUrl } from '@/config/env'
 import { VisualEditor, type ElementInfo } from '@/utils/visualEditor'
 
@@ -236,8 +250,10 @@ import {
   DownloadOutlined,
   EditOutlined,
   ExportOutlined,
+  HistoryOutlined,
   InfoCircleOutlined,
   SendOutlined,
+  TeamOutlined,
 } from '@ant-design/icons-vue'
 
 const route = useRoute()
@@ -300,10 +316,91 @@ const isAdmin = computed(() => {
 // 应用详情相关
 const appDetailVisible = ref(false)
 
+// 版本历史相关
+const versionHistoryVisible = ref(false)
+
 // 显示应用详情
 const showAppDetail = () => {
   appDetailVisible.value = true
 }
+
+// 显示版本历史
+const showVersionHistory = () => {
+  versionHistoryVisible.value = true
+}
+
+// 打开群聊创建/加入页面（新窗口）
+const goToChatRoom = () => {
+  const url = window.location.origin + '/chat/create-or-join'
+  window.open(url, '_blank')
+}
+
+// 版本回退成功后刷新页面
+const handleRollbackSuccess = () => {
+  fetchAppInfo()
+  loadChatHistory()
+}
+
+// 滚动到指定的消息索引
+const scrollToMessageIndex = (index: number) => {
+  if (messagesContainer.value) {
+    const messageElements = messagesContainer.value.querySelectorAll('.message-item')
+    if (messageElements[index]) {
+      const containerRect = messagesContainer.value.getBoundingClientRect()
+      const elementRect = messageElements[index].getBoundingClientRect()
+      const scrollTop = messagesContainer.value.scrollTop
+      const targetScrollTop = scrollTop + elementRect.top - containerRect.top - 20
+      messagesContainer.value.scrollTo({
+        top: targetScrollTop,
+        behavior: 'smooth'
+      })
+      return true
+    }
+  }
+  return false
+}
+
+// 根据 versionIndex 加载消息并滚动
+const handleVersionIndexScroll = async (versionIndex: number, retryCount = 0) => {
+  const maxRetries = 10
+  const targetMessageIndex = versionIndex * 2
+
+  if (messages.value[targetMessageIndex]) {
+    nextTick(() => {
+      scrollToMessageIndex(targetMessageIndex)
+    })
+    return
+  }
+
+  if (hasMoreHistory.value && retryCount < maxRetries) {
+    await loadMoreHistory()
+    await new Promise((resolve) => setTimeout(resolve, 300))
+    await handleVersionIndexScroll(versionIndex, retryCount + 1)
+    return
+  }
+
+  if (messages.value[targetMessageIndex]) {
+    nextTick(() => {
+      scrollToMessageIndex(targetMessageIndex)
+    })
+  }
+}
+
+// 监听路由参数 versionIndex
+watch(
+  () => route.query.versionIndex,
+  async (newVersionIndex) => {
+    if (newVersionIndex && !isNaN(Number(newVersionIndex))) {
+      const versionIndex = Number(newVersionIndex)
+      if (!historyLoaded.value) {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+      }
+      await handleVersionIndexScroll(versionIndex)
+      router.replace({ query: {} })
+    }
+  },
+  { immediate: true }
+)
 
 // 加载对话历史
 const loadChatHistory = async (isLoadMore = false) => {

@@ -26,6 +26,18 @@ export async function deleteUser(body: API.DeleteRequest, options?: { [key: stri
   })
 }
 
+/** 此处后端没有提供注释 POST /user/edit */
+export async function editUser(body: API.UserEditRequest, options?: { [key: string]: any }) {
+  return request<API.BaseResponseBoolean>('/user/edit', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
 /** 此处后端没有提供注释 GET /user/get */
 export async function getUserById(
   // 叠加生成的Param类型 (非body参数swagger默认没有生成对象)
@@ -122,6 +134,17 @@ export async function updateUser(body: API.UserUpdateRequest, options?: { [key: 
       'Content-Type': 'application/json',
     },
     data: body,
+    ...(options || {}),
+  })
+}
+
+/** 上传用户头像 POST /user/upload/avatar */
+export async function uploadAvatar(file: File, options?: { [key: string]: any }) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request<API.BaseResponseString>('/user/upload/avatar', {
+    method: 'POST',
+    data: formData,
     ...(options || {}),
   })
 }

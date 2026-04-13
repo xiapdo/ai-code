@@ -29,7 +29,7 @@
 import { reactive } from 'vue'
 import { userLogin } from '@/api/userController.ts'
 import { useLoginUserStore } from '@/stores/loginUser.ts'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 
 const formState = reactive<API.UserLoginRequest>({
@@ -38,6 +38,7 @@ const formState = reactive<API.UserLoginRequest>({
 })
 
 const router = useRouter()
+const route = useRoute()
 const loginUserStore = useLoginUserStore()
 
 /**
@@ -50,10 +51,24 @@ const handleSubmit = async (values: any) => {
   if (res.data.code === 0 && res.data.data) {
     await loginUserStore.fetchLoginUser()
     message.success('登录成功')
-    router.push({
-      path: '/',
-      replace: true,
-    })
+    
+    // 检查是否有待处理的邀请码
+    const pendingInviteCode = sessionStorage.getItem('pendingInviteCode')
+    if (pendingInviteCode) {
+      sessionStorage.removeItem('pendingInviteCode')
+      router.push(`/chat/invite/${pendingInviteCode}`)
+    } else {
+      // 检查URL是否有redirect参数
+      const redirect = route.query.redirect as string
+      if (redirect) {
+        router.push(redirect)
+      } else {
+        router.push({
+          path: '/',
+          replace: true,
+        })
+      }
+    }
   } else {
     message.error('登录失败，' + res.data.message)
   }
