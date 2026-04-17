@@ -28,50 +28,45 @@ public class AiModelMonitorListener implements ChatModelListener {
 
     @Override
     public void onRequest(ChatModelRequestContext requestContext) {
-        // 获取当前时间戳，但未做任何处理
         requestContext.attributes().put(REQUEST_START_TIME_KEY, Instant.now());
-        // 从监控上下文中获取信息
         MonitorContext monitorContext = MonitorContextHolder.getContext();
+        if (monitorContext == null) {
+            return;
+        }
         String userId = monitorContext.getUserId();
         String appId = monitorContext.getAppId();
         requestContext.attributes().put(MONITOR_CONTEXT_KEY, monitorContext);
-        // 获取模型名称
         String modelName = requestContext.chatRequest().modelName();
-        // 记录请求指标
         aiModelMetricsCollector.recordRequest(userId, appId, modelName, "started");
     }
 
     @Override
     public void onResponse(ChatModelResponseContext responseContext) {
-        // 从属性中获取监控信息（由 onRequest 方法存储）
         Map<Object, Object> attributes = responseContext.attributes();
-        // 从监控上下文中获取信息
         MonitorContext context = (MonitorContext) attributes.get(MONITOR_CONTEXT_KEY);
+        if (context == null) {
+            return;
+        }
         String userId = context.getUserId();
         String appId = context.getAppId();
-        // 获取模型名称
         String modelName = responseContext.chatResponse().modelName();
-        // 记录成功请求
         aiModelMetricsCollector.recordRequest(userId, appId, modelName, "success");
-        // 记录响应时间
         recordResponseTime(attributes, userId, appId, modelName);
-        // 记录 Token 使用情况
         recordTokenUsage(responseContext, userId, appId, modelName);
     }
 
     @Override
     public void onError(ChatModelErrorContext errorContext) {
-        // 从监控上下文中获取信息
         MonitorContext context = MonitorContextHolder.getContext();
+        if (context == null) {
+            return;
+        }
         String userId = context.getUserId();
         String appId = context.getAppId();
-        // 获取模型名称和错误类型
         String modelName = errorContext.chatRequest().modelName();
         String errorMessage = errorContext.error().getMessage();
-        // 记录失败请求
         aiModelMetricsCollector.recordRequest(userId, appId, modelName, "error");
         aiModelMetricsCollector.recordError(userId, appId, modelName, errorMessage);
-        // 记录响应时间（即使是错误响应）
         Map<Object, Object> attributes = errorContext.attributes();
         recordResponseTime(attributes, userId, appId, modelName);
     }

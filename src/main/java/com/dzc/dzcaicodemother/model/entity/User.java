@@ -107,4 +107,22 @@ public class User implements Serializable {
     @Column(value = "isDelete", isLogicDelete = true)
     private Integer isDelete;
 
+    /**
+     * 未读通知数量
+     */
+    @Column("unreadNotificationCount")
+    private Integer unreadNotificationCount;
+
+    /**
+     * 金币数量
+     */
+    @Column("coins")
+    private Integer coins;
+
+    /**
+     * 群聊创建名额
+     */
+    @Column("chatRoomQuota")
+    private Integer chatRoomQuota;
+
 }

@@ -14,13 +14,17 @@ import com.dzc.dzcaicodemother.exception.ErrorCode;
 import com.dzc.dzcaicodemother.exception.ThrowUtils;
 import com.dzc.dzcaicodemother.mapper.ChatRoomMapper;
 import com.dzc.dzcaicodemother.mapper.ChatRoomMemberMapper;
+import com.dzc.dzcaicodemother.mapper.ChatRoomMessageMapper;
 import com.dzc.dzcaicodemother.model.dto.chat.ChatRoomCreateRequest;
 import com.dzc.dzcaicodemother.model.dto.chat.ChatRoomQueryRequest;
 import com.dzc.dzcaicodemother.model.dto.chat.ChatRoomUpdateRequest;
 import com.dzc.dzcaicodemother.model.entity.ChatRoom;
 import com.dzc.dzcaicodemother.model.entity.ChatRoomMember;
+import com.dzc.dzcaicodemother.model.entity.ChatRoomMessage;
 import com.dzc.dzcaicodemother.model.entity.User;
+import com.dzc.dzcaicodemother.model.vo.ChatRoomMemberVO;
 import com.dzc.dzcaicodemother.service.ChatRoomService;
+import com.dzc.dzcaicodemother.service.UserService;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 import com.mybatisflex.spring.service.impl.ServiceImpl;
@@ -41,7 +45,13 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom> i
     private ChatRoomMemberMapper chatRoomMemberMapper;
 
     @Resource
+    private ChatRoomMessageMapper chatRoomMessageMapper;
+
+    @Resource
     private PlatformTransactionManager transactionManager;
+
+    @Resource
+    private UserService userService;
 
     private static final int MAX_MEMBERS_LIMIT = 10;
 
@@ -126,11 +136,11 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom> i
             return Page.of(request.getPageNum(), pageSize, 0);
         }
 
-        QueryWrapper roomQuery = QueryWrapper.create(QueryWrapper.create()
+        QueryWrapper roomQuery = QueryWrapper.create()
                 .and(ChatRoom::getId).in(allRoomIds)
                 .and(ChatRoom::getStatus).eq(1)
                 .and(ChatRoom::getIsDelete).eq(0)
-                .orderBy(ChatRoom::getCreateTime));
+                .orderBy(ChatRoom::getCreateTime, false);
 
         return this.page(Page.of(request.getPageNum(), pageSize), roomQuery);
     }
@@ -150,8 +160,9 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom> i
     @Transactional(rollbackFor = Exception.class)
     public boolean dissolveRoom(Long roomId, User loginUser) {
         ChatRoom chatRoom = this.getById(roomId);
-        ThrowUtils.throwIf(!chatRoom.getOwnerUserId().equals(loginUser.getId()),
-                ErrorCode.NO_AUTH_ERROR, "只有群主才能解散群聊");
+        boolean isAdmin = "admin".equals(loginUser.getUserRole());
+        ThrowUtils.throwIf(!isAdmin && !chatRoom.getOwnerUserId().equals(loginUser.getId()),
+                ErrorCode.NO_AUTH_ERROR, "只有群主或管理员才能解散群聊");
 
         ChatRoom update = new ChatRoom();
         update.setId(roomId);
@@ -165,6 +176,10 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom> i
             ChatRoomMember memberUpdate = new ChatRoomMember();
             memberUpdate.setIsDelete(1);
             chatRoomMemberMapper.updateByQuery(memberUpdate, memberUpdateWrapper);
+
+            QueryWrapper messageDeleteWrapper = QueryWrapper.create()
+                    .where(ChatRoomMessage::getRoomId).eq(roomId);
+            chatRoomMessageMapper.deleteByQuery(messageDeleteWrapper);
 
             log.info("用户 {} 解散群聊成功：roomId={}", loginUser.getId(), roomId);
         }
@@ -322,6 +337,39 @@ public class ChatRoomServiceImpl extends ServiceImpl<ChatRoomMapper, ChatRoom> i
                 .and(ChatRoomMember::getRoomId).eq(roomId)
                 .and(ChatRoomMember::getIsDelete).eq(0);
         return chatRoomMemberMapper.selectListByQuery(queryWrapper);
+    }
+
+    @Override
+    public List<ChatRoomMemberVO> listRoomMembersWithUserInfo(Long roomId) {
+        List<ChatRoomMember> members = listRoomMembers(roomId);
+        if (members.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        List<Long> userIds = members.stream().map(ChatRoomMember::getUserId).distinct().toList();
+        List<User> users = userService.listByIds(userIds);
+        java.util.Map<Long, User> userMap = users.stream()
+                .collect(java.util.stream.Collectors.toMap(User::getId, u -> u, (a, b) -> a));
+
+        return members.stream().map(member -> {
+            ChatRoomMemberVO vo = new ChatRoomMemberVO();
+            vo.setId(member.getId());
+            vo.setRoomId(member.getRoomId());
+            vo.setUserId(member.getUserId());
+            vo.setMemberRole(member.getMemberRole());
+            vo.setJoinTime(member.getJoinTime());
+            vo.setLastActiveTime(member.getLastActiveTime());
+            vo.setIsMuted(member.getIsMuted());
+            vo.setOnlineStatus(member.getOnlineStatus());
+
+            User user = userMap.get(member.getUserId());
+            if (user != null) {
+                vo.setUserName(user.getUserName());
+                vo.setUserAvatar(user.getUserAvatar());
+                vo.setUserProfile(user.getUserProfile());
+            }
+            return vo;
+        }).toList();
     }
 
     @Override

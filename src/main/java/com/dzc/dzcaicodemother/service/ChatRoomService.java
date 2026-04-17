@@ -8,6 +8,7 @@ import com.dzc.dzcaicodemother.model.dto.chat.ChatRoomUpdateRequest;
 import com.dzc.dzcaicodemother.model.entity.ChatRoom;
 import com.dzc.dzcaicodemother.model.entity.ChatRoomMember;
 import com.dzc.dzcaicodemother.model.entity.User;
+import com.dzc.dzcaicodemother.model.vo.ChatRoomMemberVO;
 import com.mybatisflex.core.paginate.Page;
 import com.mybatisflex.core.query.QueryWrapper;
 
@@ -74,6 +75,11 @@ public interface ChatRoomService {
      * 踢出成员
      */
     boolean kickMember(Long roomId, Long memberUserId, User loginUser);
+
+    /**
+     * 获取群聊成员列表（包含用户信息）
+     */
+    List<ChatRoomMemberVO> listRoomMembersWithUserInfo(Long roomId);
 
     /**
      * 获取群聊成员列表

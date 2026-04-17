@@ -58,5 +58,15 @@ public class LoginUserVO implements Serializable {
      */
     private LocalDateTime updateTime;
 
+    /**
+     * 金币数量
+     */
+    private Integer coins;
+
+    /**
+     * 群聊创建名额
+     */
+    private Integer chatRoomQuota;
+
     private static final long serialVersionUID = 1L;
 }

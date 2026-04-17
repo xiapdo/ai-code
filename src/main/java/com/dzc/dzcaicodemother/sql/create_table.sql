@@ -1,6 +1,4 @@
 # 数据库初始化
-# @author <a href="https://github.com/liyupi">程序员鱼皮</a>
-# @from <a href="https://codefather.cn">编程导航学习圈</a>
 
 -- 创建库
 create database if not exists dzc_code_mother;
@@ -179,3 +177,34 @@ CREATE TABLE IF NOT EXISTS chat_room_message (
 
 ALTER TABLE `user` ADD COLUMN `phone` char(11) DEFAULT NULL COMMENT '手机号' AFTER `userProfile`;
 ALTER TABLE `user` ADD COLUMN `email` varchar(24) DEFAULT NULL COMMENT '邮箱' AFTER `phone`;
+
+ALTER TABLE app ADD COLUMN likeCount INT DEFAULT 0 COMMENT '点赞数';
+ALTER TABLE app ADD COLUMN collectCount INT DEFAULT 0 COMMENT '收藏数';
+ALTER TABLE app ADD COLUMN commentCount INT DEFAULT 0 COMMENT '评论数';
+ALTER TABLE app ADD COLUMN likeUserIds TEXT COMMENT '点赞用户ID列表(JSON)';
+ALTER TABLE app ADD COLUMN collectUserIds TEXT COMMENT '收藏用户ID列表(JSON)';
+
+ALTER TABLE user ADD COLUMN unreadNotificationCount INT DEFAULT 0 COMMENT '未读通知数量';
+
+# ALTER TABLE  user DROP COLUMN unread_notification_count;
+-- 3. app_comment 表（评论持久化存储）
+CREATE TABLE IF NOT EXISTS app_comment (
+   id BIGINT AUTO_INCREMENT PRIMARY KEY,
+   appId BIGINT NOT NULL COMMENT '应用ID',
+   userId BIGINT NOT NULL COMMENT '评论用户ID',
+   content VARCHAR(500) NOT NULL COMMENT '评论内容(最多500字符)',
+   replyToId BIGINT COMMENT '回复的评论ID',
+   parentId BIGINT COMMENT '父评论ID(用于嵌套回复)',
+   likeCount INT DEFAULT 0 COMMENT '评论点赞数',
+   status TINYINT DEFAULT 1 NOT NULL COMMENT '状态: 1-正常 2-删除',
+   createTime DATETIME DEFAULT CURRENT_TIMESTAMP NOT NULL,
+   updateTime DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+   isDelete TINYINT DEFAULT 0 NOT NULL COMMENT '逻辑删除',
+   INDEX idx_app_id (appId),
+   INDEX idx_user_id (userId),
+   INDEX idx_create_time (createTime),
+   INDEX idx_parent_id (updateTime)
+) COMMENT='应用评论表' COLLATE utf8mb4_unicode_ci;
+
+ALTER TABLE user ADD COLUMN coins INT DEFAULT 0 COMMENT '金币数量';
+ALTER TABLE user ADD COLUMN chatRoomQuota INT DEFAULT 0 COMMENT '群聊创建名额';

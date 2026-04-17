@@ -9,9 +9,11 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.dzc.dzcaicodemother.annotation.AuthCheck;
 import com.dzc.dzcaicodemother.common.BaseResponse;
 import com.dzc.dzcaicodemother.common.DeleteRequest;
 import com.dzc.dzcaicodemother.common.ResultUtils;
+import com.dzc.dzcaicodemother.constant.UserConstant;
 import com.dzc.dzcaicodemother.exception.ErrorCode;
 import com.dzc.dzcaicodemother.exception.ThrowUtils;
 import com.dzc.dzcaicodemother.mapper.ChatRoomMapper;
@@ -21,10 +23,12 @@ import com.dzc.dzcaicodemother.model.dto.chat.ChatRoomCreateRequest;
 import com.dzc.dzcaicodemother.model.dto.chat.ChatRoomQueryRequest;
 import com.dzc.dzcaicodemother.model.dto.chat.ChatRoomUpdateRequest;
 import com.dzc.dzcaicodemother.model.entity.ChatRoom;
-import com.dzc.dzcaicodemother.model.entity.ChatRoomMember;
-import com.dzc.dzcaicodemother.model.entity.ChatRoomMessage;
 import com.dzc.dzcaicodemother.model.entity.User;
+import com.dzc.dzcaicodemother.model.vo.ChatRoomMemberVO;
+import com.dzc.dzcaicodemother.model.vo.ChatRoomMessageVO;
+import com.dzc.dzcaicodemother.model.vo.ChatRoomVO;
 import com.dzc.dzcaicodemother.model.vo.InviteInfoVO;
+import com.dzc.dzcaicodemother.model.vo.UserVO;
 import com.dzc.dzcaicodemother.ratelimter.annotation.RateLimit;
 import com.dzc.dzcaicodemother.ratelimter.enums.RateLimitType;
 import com.dzc.dzcaicodemother.service.ChatRoomService;
@@ -79,9 +83,23 @@ public class ChatRoomController {
         ThrowUtils.throwIf(chatRoomCreateRequest == null, ErrorCode.PARAMS_ERROR);
         User loginUser = userService.getLoginUser(request);
 
+        // 1. 检查是否达到创建上限（8 个）
         long createdCount = chatRoomService.countMyCreatedRooms(loginUser.getId());
         ThrowUtils.throwIf(createdCount >= 8, ErrorCode.OPERATION_ERROR, "你已达到创建群聊上限，请联系工作人员处理");
 
+        // 2. 检查用户是否为管理员（管理员不受名额限制）
+        boolean isAdmin = UserConstant.ADMIN_ROLE.equals(loginUser.getUserRole());
+        if (!isAdmin) {
+            // 3. 普通用户检查是否有群聊名额
+            Integer quota = loginUser.getChatRoomQuota() == null ? 0 : loginUser.getChatRoomQuota();
+            ThrowUtils.throwIf(quota <= 0, ErrorCode.OPERATION_ERROR, "金币不足，请签到积累金币兑换群聊名额");
+
+            // 4. 消耗 1 个名额
+            loginUser.setChatRoomQuota(quota - 1);
+            userService.updateById(loginUser);
+        }
+
+        // 5. 创建群聊
         ChatRoom chatRoom = chatRoomService.createRoomWithInviteCode(chatRoomCreateRequest, loginUser);
 
         return ResultUtils.success(chatRoom);
@@ -263,19 +281,17 @@ public class ChatRoomController {
      * @return 成员列表
      */
     @GetMapping("/members/list")
-    public BaseResponse<List<ChatRoomMember>> listRoomMembers(@RequestParam Long roomId, HttpServletRequest request) {
+    public BaseResponse<List<ChatRoomMemberVO>> listRoomMembers(@RequestParam Long roomId, HttpServletRequest request) {
         ThrowUtils.throwIf(roomId == null || roomId <= 0, ErrorCode.PARAMS_ERROR, "群聊ID错误");
         User loginUser = userService.getLoginUser(request);
 
-        // 获取群聊信息，检查是否是群主
         ChatRoom chatRoom = chatRoomService.getById(roomId);
         if (!chatRoom.getOwnerUserId().equals(loginUser.getId())) {
-            // 不是群主，检查是否是群成员
             boolean isMember = chatRoomService.isRoomMember(roomId, loginUser.getId());
             ThrowUtils.throwIf(!isMember, ErrorCode.NO_AUTH_ERROR, "您不在该群聊中");
         }
 
-        List<ChatRoomMember> members = chatRoomService.listRoomMembers(roomId);
+        List<ChatRoomMemberVO> members = chatRoomService.listRoomMembersWithUserInfo(roomId);
         return ResultUtils.success(members);
     }
 
@@ -321,16 +337,15 @@ public class ChatRoomController {
      * @return 消息列表
      */
     @GetMapping("/messages")
-    public BaseResponse<List<ChatRoomMessage>> getChatMessages(@RequestParam Long roomId, HttpServletRequest request) {
+    public BaseResponse<List<ChatRoomMessageVO>> getChatMessages(@RequestParam Long roomId, HttpServletRequest request) {
         ThrowUtils.throwIf(roomId == null || roomId <= 0, ErrorCode.PARAMS_ERROR, "群聊ID错误");
         User loginUser = userService.getLoginUser(request);
-        // 群主可以直接查看消息
         ChatRoom chatRoom = chatRoomService.getById(roomId);
         if (!chatRoom.getOwnerUserId().equals(loginUser.getId())) {
             boolean isMember = chatService.isRoomMember(roomId, loginUser.getId());
             ThrowUtils.throwIf(!isMember, ErrorCode.NO_AUTH_ERROR, "您不在该群聊中");
         }
-        List<ChatRoomMessage> messages = chatService.getRecentMessages(roomId, 100);
+        List<ChatRoomMessageVO> messages = chatService.getRecentMessagesWithUserInfo(roomId, 100);
         return ResultUtils.success(messages);
     }
 
@@ -366,5 +381,114 @@ public class ChatRoomController {
         messageProducer.publish(messageSendRequest.getRoomId(), messageVO);
 
         return ResultUtils.success(messageId);
+    }
+
+    // ==================== 管理员接口 ====================
+
+    /**
+     * 管理员分页获取群聊列表
+     *
+     * @param chatRoomQueryRequest 查询请求
+     * @return 群聊列表（含群主信息）
+     */
+    @PostMapping("/admin/list/page/vo")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Page<ChatRoomVO>> listChatRoomByPageForAdmin(
+            @RequestBody ChatRoomQueryRequest chatRoomQueryRequest) {
+        ThrowUtils.throwIf(chatRoomQueryRequest == null, ErrorCode.PARAMS_ERROR);
+        long pageNum = chatRoomQueryRequest.getPageNum();
+        long pageSize = chatRoomQueryRequest.getPageSize();
+        QueryWrapper queryWrapper = chatRoomService.getQueryWrapper(chatRoomQueryRequest);
+        Page<ChatRoom> chatRoomPage = chatRoomMapper.paginate(Page.of(pageNum, pageSize), queryWrapper);
+        Page<ChatRoomVO> voPage = new Page<>(pageNum, pageSize, chatRoomPage.getTotalRow());
+        List<ChatRoomVO> voList = chatRoomPage.getRecords().stream().map(room -> {
+            ChatRoomVO vo = new ChatRoomVO();
+            vo.setId(room.getId());
+            vo.setRoomName(room.getRoomName());
+            vo.setRoomAvatar(room.getRoomAvatar());
+            vo.setDescription(room.getDescription());
+            vo.setInviteCode(room.getInviteCode());
+            vo.setInviteExpiryTime(room.getInviteExpiryTime());
+            vo.setOwnerUserId(room.getOwnerUserId());
+            vo.setMemberCount(room.getMemberCount());
+            vo.setStatus(room.getStatus());
+            vo.setCreateTime(room.getCreateTime());
+            vo.setUpdateTime(room.getUpdateTime());
+            User owner = userService.getById(room.getOwnerUserId());
+            if (owner != null) {
+                UserVO ownerVO = new UserVO();
+                ownerVO.setId(owner.getId());
+                ownerVO.setUserName(owner.getUserName());
+                ownerVO.setUserAvatar(owner.getUserAvatar());
+                ownerVO.setUserAccount(owner.getUserAccount());
+                vo.setOwner(ownerVO);
+            }
+            return vo;
+        }).toList();
+        voPage.setRecords(voList);
+        return ResultUtils.success(voPage);
+    }
+
+    /**
+     * 管理员解散群聊
+     *
+     * @param deleteRequest 删除请求
+     * @return 解散结果
+     */
+    @PostMapping("/admin/dissolve")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<Boolean> dissolveRoomByAdmin(@RequestBody DeleteRequest deleteRequest,
+                                                      HttpServletRequest request) {
+        ThrowUtils.throwIf(deleteRequest == null, ErrorCode.PARAMS_ERROR);
+        ThrowUtils.throwIf(deleteRequest.getId() == null, ErrorCode.PARAMS_ERROR, "群聊ID不能为空");
+        Long roomId = deleteRequest.getId();
+        ChatRoom chatRoom = chatRoomService.getById(roomId);
+        ThrowUtils.throwIf(chatRoom == null, ErrorCode.NOT_FOUND_ERROR, "群聊不存在");
+
+        ChatRoom update = new ChatRoom();
+        update.setId(roomId);
+        update.setStatus(2);
+        boolean updated = chatRoomMapper.update(update) > 0;
+
+        if (updated) {
+            log.info("管理员解散群聊成功：roomId={}", roomId);
+        }
+        return ResultUtils.success(updated);
+    }
+
+    /**
+     * 管理员获取群聊详情（含成员列表）
+     *
+     * @param id 群聊ID
+     * @return 群聊详情
+     */
+    @GetMapping("/admin/get/vo")
+    @AuthCheck(mustRole = UserConstant.ADMIN_ROLE)
+    public BaseResponse<ChatRoomVO> getChatRoomVOByAdmin(@RequestParam Long id) {
+        ThrowUtils.throwIf(id == null || id <= 0, ErrorCode.PARAMS_ERROR, "群聊ID错误");
+        ChatRoom room = chatRoomService.getById(id);
+        ThrowUtils.throwIf(room == null, ErrorCode.NOT_FOUND_ERROR, "群聊不存在");
+        ChatRoomVO vo = new ChatRoomVO();
+        vo.setId(room.getId());
+        vo.setRoomName(room.getRoomName());
+        vo.setRoomAvatar(room.getRoomAvatar());
+        vo.setDescription(room.getDescription());
+        vo.setInviteCode(room.getInviteCode());
+        vo.setInviteExpiryTime(room.getInviteExpiryTime());
+        vo.setOwnerUserId(room.getOwnerUserId());
+        vo.setMemberCount(room.getMemberCount());
+        vo.setStatus(room.getStatus());
+        vo.setCreateTime(room.getCreateTime());
+        vo.setUpdateTime(room.getUpdateTime());
+        User owner = userService.getById(room.getOwnerUserId());
+        if (owner != null) {
+            UserVO ownerVO = new UserVO();
+            ownerVO.setId(owner.getId());
+            ownerVO.setUserName(owner.getUserName());
+            ownerVO.setUserAvatar(owner.getUserAvatar());
+            ownerVO.setUserAccount(owner.getUserAccount());
+            vo.setOwner(ownerVO);
+        }
+        return ResultUtils.success(vo);
     }
 }

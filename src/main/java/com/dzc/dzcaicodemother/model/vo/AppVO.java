@@ -1,9 +1,9 @@
 package com.dzc.dzcaicodemother.model.vo;
 
-import lombok.Data;
-
 import java.io.Serializable;
 import java.time.LocalDateTime;
+
+import lombok.Data;
 
 @Data
 public class AppVO implements Serializable {
@@ -67,6 +67,31 @@ public class AppVO implements Serializable {
      * 创建用户信息
      */
     private UserVO user;
+
+    /**
+     * 点赞数
+     */
+    private Integer likeCount;
+
+    /**
+     * 收藏数
+     */
+    private Integer collectCount;
+
+    /**
+     * 评论数
+     */
+    private Integer commentCount;
+
+    /**
+     * 当前用户是否点赞
+     */
+    private Boolean isLiked;
+
+    /**
+     * 当前用户是否收藏
+     */
+    private Boolean isCollected;
 
     private static final long serialVersionUID = 1L;
 }

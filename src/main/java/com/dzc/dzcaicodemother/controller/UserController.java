@@ -29,6 +29,7 @@ import com.dzc.dzcaicodemother.model.dto.user.UserQueryRequest;
 import com.dzc.dzcaicodemother.model.dto.user.UserRegisterRequest;
 import com.dzc.dzcaicodemother.model.dto.user.UserUpdateRequest;
 import com.dzc.dzcaicodemother.model.entity.User;
+import com.dzc.dzcaicodemother.model.vo.CheckinStatusVO;
 import com.dzc.dzcaicodemother.model.vo.LoginUserVO;
 import com.dzc.dzcaicodemother.model.vo.UserVO;
 import com.dzc.dzcaicodemother.service.UserService;
@@ -249,5 +250,39 @@ public class UserController {
         List<UserVO> userVOList = userService.getUserVOList(userPage.getRecords());
         userVOPage.setRecords(userVOList);
         return ResultUtils.success(userVOPage);
+    }
+
+    /**
+     * 用户签到
+     *
+     * @param request 请求对象
+     * @return 签到状态信息
+     */
+    @PostMapping("/checkin")
+    public BaseResponse<CheckinStatusVO> userCheckin(HttpServletRequest request) {
+        // 1. 获取当前登录用户
+        User loginUser = userService.getLoginUser(request);
+        
+        // 2. 执行签到
+        CheckinStatusVO checkinStatus = userService.checkin(loginUser);
+        
+        return ResultUtils.success(checkinStatus);
+    }
+
+    /**
+     * 获取用户签到状态
+     *
+     * @param request 请求对象
+     * @return 签到状态信息
+     */
+    @GetMapping("/checkin/status")
+    public BaseResponse<CheckinStatusVO> getCheckinStatus(HttpServletRequest request) {
+        // 1. 获取当前登录用户
+        User loginUser = userService.getLoginUser(request);
+        
+        // 2. 获取签到状态
+        CheckinStatusVO checkinStatus = userService.getCheckinStatus(loginUser);
+        
+        return ResultUtils.success(checkinStatus);
     }
 }

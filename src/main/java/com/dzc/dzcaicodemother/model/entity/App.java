@@ -1,21 +1,19 @@
 package com.dzc.dzcaicodemother.model.entity;
 
+import java.io.Serial;
+import java.io.Serializable;
+import java.time.LocalDateTime;
+
 import com.mybatisflex.annotation.Column;
 import com.mybatisflex.annotation.Id;
 import com.mybatisflex.annotation.KeyType;
 import com.mybatisflex.annotation.Table;
-import java.io.Serializable;
-import java.time.LocalDateTime;
-
-import java.io.Serial;
-
 import com.mybatisflex.core.keygen.KeyGenerators;
+
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-
-import javax.crypto.KeyGenerator;
 
 /**
  *  实体类。
@@ -119,5 +117,35 @@ public class App implements Serializable {
      */
     @Column("currentVersionId")
     private Long currentVersionId;
+
+    /**
+     * 点赞数
+     */
+    @Column("likeCount")
+    private Integer likeCount;
+
+    /**
+     * 收藏数
+     */
+    @Column("collectCount")
+    private Integer collectCount;
+
+    /**
+     * 评论数
+     */
+    @Column("commentCount")
+    private Integer commentCount;
+
+    /**
+     * 点赞用户ID列表（JSON格式）
+     */
+    @Column("likeUserIds")
+    private String likeUserIds;
+
+    /**
+     * 收藏用户ID列表（JSON格式）
+     */
+    @Column("collectUserIds")
+    private String collectUserIds;
 
 }

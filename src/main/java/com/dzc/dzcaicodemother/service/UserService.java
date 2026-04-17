@@ -1,15 +1,16 @@
 package com.dzc.dzcaicodemother.service;
+import java.util.List;
 
-import com.dzc.dzcaicodemother.model.dto.user.UserRegisterRequest;
-import com.mybatisflex.core.query.QueryWrapper;
-import com.mybatisflex.core.service.IService;
 import com.dzc.dzcaicodemother.model.dto.user.UserQueryRequest;
+import com.dzc.dzcaicodemother.model.dto.user.UserRegisterRequest;
 import com.dzc.dzcaicodemother.model.entity.User;
+import com.dzc.dzcaicodemother.model.vo.CheckinStatusVO;
 import com.dzc.dzcaicodemother.model.vo.LoginUserVO;
 import com.dzc.dzcaicodemother.model.vo.UserVO;
-import jakarta.servlet.http.HttpServletRequest;
+import com.mybatisflex.core.query.QueryWrapper;
+import com.mybatisflex.core.service.IService;
 
-import java.util.List;
+import jakarta.servlet.http.HttpServletRequest;
 
 /**
  * 用户 服务层。
@@ -92,4 +93,20 @@ public interface UserService extends IService<User> {
      * @return 加密后的用户密码
      */
     String getEncryptPassword(String userPassword);
+
+    /**
+     * 用户签到
+     *
+     * @param user 当前登录用户
+     * @return 签到状态信息
+     */
+    CheckinStatusVO checkin(User user);
+
+    /**
+     * 获取用户签到状态
+     *
+     * @param user 当前登录用户
+     * @return 签到状态信息
+     */
+    CheckinStatusVO getCheckinStatus(User user);
 }

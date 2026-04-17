@@ -1,13 +1,18 @@
 package com.dzc.dzcaicodemother.service.impl;
 
-import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.collection.CollUtil;
-import cn.hutool.core.io.FileUtil;
-import cn.hutool.core.util.RandomUtil;
-import cn.hutool.core.util.StrUtil;
-import com.dzc.dzcaicodemother.service.*;
-import com.mybatisflex.core.query.QueryWrapper;
-import com.mybatisflex.spring.service.impl.ServiceImpl;
+import java.io.File;
+import java.io.Serializable;
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
+
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Lazy;
+import org.springframework.stereotype.Service;
+
 import com.dzc.dzcaicodemother.ai.AiCodeGenTypeRoutingService;
 import com.dzc.dzcaicodemother.ai.AiCodeGenTypeRoutingServiceFactory;
 import com.dzc.dzcaicodemother.constant.AppConstant;
@@ -28,21 +33,23 @@ import com.dzc.dzcaicodemother.model.vo.AppVO;
 import com.dzc.dzcaicodemother.model.vo.UserVO;
 import com.dzc.dzcaicodemother.monitor.MonitorContext;
 import com.dzc.dzcaicodemother.monitor.MonitorContextHolder;
+import com.dzc.dzcaicodemother.service.AppService;
+import com.dzc.dzcaicodemother.service.AppVersionSnapshotService;
+import com.dzc.dzcaicodemother.service.ChatHistoryOriginalService;
+import com.dzc.dzcaicodemother.service.ChatHistoryService;
+import com.dzc.dzcaicodemother.service.ScreenshotService;
+import com.dzc.dzcaicodemother.service.UserService;
+import com.mybatisflex.core.query.QueryWrapper;
+import com.mybatisflex.spring.service.impl.ServiceImpl;
+
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.collection.CollUtil;
+import cn.hutool.core.io.FileUtil;
+import cn.hutool.core.util.RandomUtil;
+import cn.hutool.core.util.StrUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.context.annotation.Lazy;
-import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
-
-import java.io.File;
-import java.io.Serializable;
-import java.time.LocalDateTime;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * 应用 服务层实现。
@@ -250,13 +257,15 @@ return appDeployUrl;
         }
         AppVO appVO = new AppVO();
         BeanUtil.copyProperties(app, appVO);
-        // 关联查询用户信息
         Long userId = app.getUserId();
         if (userId != null) {
             User user = userService.getById(userId);
             UserVO userVO = userService.getUserVO(user);
             appVO.setUser(userVO);
         }
+        appVO.setLikeCount(app.getLikeCount() != null ? app.getLikeCount() : 0);
+        appVO.setCollectCount(app.getCollectCount() != null ? app.getCollectCount() : 0);
+        appVO.setCommentCount(app.getCommentCount() != null ? app.getCommentCount() : 0);
         return appVO;
     }
 
