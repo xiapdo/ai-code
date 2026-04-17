@@ -24,7 +24,7 @@
         <div class="user-login-status">
           <!-- 群聊按钮 - 点击弹出菜单 -->
           <div class="chat-popover-wrapper" title="群聊" v-if="loginUserStore.loginUser.id">
-            <a-button class="chat-btn"  @click="toggleChatMenu">
+            <a-button class="chat-btn" @click="toggleChatMenu">
               <TeamOutlined />
             </a-button>
             <transition name="fade">
@@ -55,8 +55,12 @@
               </div>
             </transition>
           </div>
+          <!-- 通知铃铛 -->
+          <div class="notify-btn" title="通知" v-if="loginUserStore.loginUser.id">
+            <NotificationBell />
+          </div>
           <!-- 用户登录状态 -->
-          <a-dropdown v-if="loginUserStore.loginUser.id">
+          <a-dropdown v-if="loginUserStore.loginUser.id" overlayClassName="user-dropdown-menu">
             <a-space>
               <a-avatar :src="loginUserStore.loginUser.userAvatar || defaultAvatar" />
               {{ loginUserStore.loginUser.userName ?? '十二' }}
@@ -65,7 +69,7 @@
               <a-menu>
                 <a-menu-item @click="goToProfile">
                   <UserOutlined />
-                  <span>个人中心</span>
+                  <span style="margin-left: 10px">个人中心</span>
                 </a-menu-item>
                 <a-menu-item class="logout-menu-item" @click="doLogout">
                   <LogoutOutlined />
@@ -177,13 +181,17 @@
           class="modal-room-item"
           @click="openMyRoomDetail(room)"
         >
-          <a-avatar :src="room.roomAvatar" style="background-color: #1890ff; flex-shrink: 0">
+          <a-avatar
+            :src="room.roomAvatar"
+            style="background-color: var(--color-primary, #15803d); flex-shrink: 0"
+          >
             {{ room.roomName?.charAt(0) }}
           </a-avatar>
           <div class="modal-room-info">
             <div class="modal-room-name">{{ room.roomName }}</div>
             <div class="modal-room-desc">
-              {{ room.description || '暂无描述' }} · {{ room.memberCount }}人
+              <span>{{ room.description || '暂无描述' }} · {{ room.memberCount }}人</span>
+              <span class="room-time">{{ formatTime(room.createTime) }}</span>
             </div>
           </div>
         </div>
@@ -209,7 +217,11 @@
   >
     <div v-if="selectedMyRoom" class="room-detail">
       <div class="room-detail-info">
-        <a-avatar :src="selectedMyRoom.roomAvatar" :size="48" style="background-color: #1890ff">
+        <a-avatar
+          :src="selectedMyRoom.roomAvatar"
+          :size="48"
+          style="background-color: var(--color-primary, #15803d)"
+        >
           {{ selectedMyRoom.roomName?.charAt(0) }}
         </a-avatar>
         <div class="room-detail-text">
@@ -253,7 +265,8 @@
           <div class="modal-room-info">
             <div class="modal-room-name">{{ room.roomName }}</div>
             <div class="modal-room-desc">
-              {{ room.description || '暂无描述' }} · {{ room.memberCount }}人
+              <span>{{ room.description || '暂无描述' }} · {{ room.memberCount }}人</span>
+              <span class="room-time">{{ formatTime(room.createTime) }}</span>
             </div>
           </div>
         </div>
@@ -361,6 +374,7 @@ import type { FormInstance } from 'ant-design-vue'
 import { Modal, message, type MenuProps } from 'ant-design-vue'
 import { computed, h, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import NotificationBell from './NotificationBell.vue'
 
 const loginUserStore = useLoginUserStore()
 const router = useRouter()
@@ -386,6 +400,11 @@ const originItems = [
     key: '/admin/appManage',
     label: '应用管理',
     title: '应用管理',
+  },
+  {
+    key: '/admin/chatRoomManage',
+    label: '群聊管理',
+    title: '群聊管理',
   },
   {
     key: 'others',
@@ -616,6 +635,17 @@ watch(joinedRoomsModalVisible, (val) => {
 })
 
 // ========== 工具方法 ==========
+const formatTime = (timeStr: string | undefined): string => {
+  if (!timeStr) return ''
+  const d = new Date(timeStr)
+  const M = String(d.getMonth() + 1).padStart(2, '0')
+  const D = String(d.getDate()).padStart(2, '0')
+  const h = String(d.getHours()).padStart(2, '0')
+  const m = String(d.getMinutes()).padStart(2, '0')
+  const s = String(d.getSeconds()).padStart(2, '0')
+  return `${M}-${D} ${h}:${m}:${s}`
+}
+
 const extractInviteCode = (value: string) => {
   if (value.includes('invite/')) {
     const parts = value.split('invite/')
@@ -834,21 +864,17 @@ onMounted(() => {
 
 <style scoped>
 .header {
-  background: linear-gradient(
-    120deg,
-    rgba(248, 250, 252, 0.9),
-    rgba(187, 247, 208, 0.85),
-    rgba(191, 219, 254, 0.85)
-  );
+  background: rgba(240, 253, 244, 0.78);
   padding: 0 24px;
-  border-bottom: 1px solid rgba(74, 222, 128, 0.35);
-  box-shadow: 0 10px 28px rgba(14, 165, 233, 0.18);
+  border-bottom: 1px solid rgba(34, 197, 94, 0.2);
+  box-shadow: 0 8px 24px rgba(21, 128, 61, 0.1);
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   z-index: 1000;
-  backdrop-filter: blur(18px);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
   transform: translateZ(0);
 }
 
@@ -867,8 +893,8 @@ onMounted(() => {
   background-position: center;
   border: 3px solid rgba(255, 255, 255, 0.8);
   box-shadow:
-    0 6px 16px rgba(236, 72, 153, 0.45),
-    inset 0 0 8px rgba(59, 130, 246, 0.35);
+    0 4px 12px rgba(21, 128, 61, 0.3),
+    inset 0 0 8px rgba(34, 197, 94, 0.2);
   transition: transform 0.9s ease-in-out;
 }
 
@@ -880,9 +906,10 @@ onMounted(() => {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #0f172a;
+  color: var(--color-foreground, #0f172a);
   letter-spacing: 1px;
-  text-shadow: 0 2px 6px rgba(16, 185, 129, 0.25);
+  text-shadow: 0 2px 6px rgba(21, 128, 61, 0.2);
+  font-family: 'Lora', serif;
 }
 
 .ant-menu-horizontal {
@@ -895,7 +922,7 @@ onMounted(() => {
 
 .ant-menu-item,
 .ant-menu-submenu-title {
-  color: #0f172a !important;
+  color: var(--color-foreground, #0f172a) !important;
   transition:
     color 0.3s,
     text-shadow 0.3s;
@@ -903,14 +930,19 @@ onMounted(() => {
 
 .ant-menu-item-selected,
 .ant-menu-item-active {
-  color: #0284c7 !important;
-  text-shadow: 0 2px 8px rgba(14, 165, 233, 0.4);
+  color: var(--color-primary, #15803d) !important;
+  text-shadow: 0 2px 8px rgba(21, 128, 61, 0.3);
 }
 
 .ant-menu-horizontal > .ant-menu-item::after,
 .ant-menu-horizontal > .ant-menu-submenu::after {
   border-bottom-width: 2px;
-  border-bottom-color: rgba(34, 197, 94, 0.8);
+  border-bottom-color: transparent;
+}
+
+.ant-menu-horizontal > .ant-menu-item-selected::after,
+.ant-menu-horizontal > .ant-menu-item-active::after {
+  border-bottom-color: var(--color-primary, #15803d) !important;
 }
 
 .user-login-status {
@@ -923,17 +955,45 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 4px;
-  background-color: #b5deed;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(34, 197, 94, 0.25);
   border-radius: 8px;
   padding: 6px 12px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   cursor: pointer;
+  color: var(--color-primary, #15803d);
 }
 
 .chat-btn:hover {
   transform: scale(1.08) translateY(-2px);
-  box-shadow: 0 4px 12px rgba(24, 144, 255, 0.35);
-  background-color: #a3d1e8;
+  box-shadow: 0 4px 16px rgba(21, 128, 61, 0.25);
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.notify-btn {
+  width: 40px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 12px;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  cursor: pointer;
+  color: var(--color-primary, #15803d);
+}
+
+.notify-btn:hover {
+  transform: scale(1.08) translateY(-2px);
+  box-shadow: 0 4px 16px rgba(21, 128, 61, 0.25);
+  background: rgba(255, 255, 255, 0.8);
+  border-color: rgba(34, 197, 94, 0.4);
 }
 
 .chat-dropdown-menu {
@@ -951,11 +1011,14 @@ onMounted(() => {
   right: 0;
   z-index: 1001;
   margin-top: 4px;
-  background: white;
-  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  border-radius: 10px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   box-shadow:
-    0 6px 16px rgba(0, 0, 0, 0.12),
-    0 3px 6px rgba(0, 0, 0, 0.08);
+    0 8px 24px rgba(21, 128, 61, 0.12),
+    0 2px 8px rgba(0, 0, 0, 0.06);
   padding: 4px 0;
 }
 
@@ -967,7 +1030,7 @@ onMounted(() => {
 .popover-section-title {
   padding: 8px 12px 4px;
   font-size: 12px;
-  color: #999;
+  color: #6b7280;
   font-weight: 600;
 }
 
@@ -981,12 +1044,12 @@ onMounted(() => {
   transition:
     background-color 0.15s ease,
     color 0.15s ease;
-  color: #333;
+  color: #374151;
 }
 
 .popover-menu-item:hover {
-  background-color: #f0f5ff;
-  color: #1890ff;
+  background: rgba(34, 197, 94, 0.08);
+  color: var(--color-primary, #15803d);
 }
 
 .fade-enter-active,
@@ -1033,7 +1096,23 @@ onMounted(() => {
   font-size: 16px;
 }
 
-.created-room-info,
+/* 用户下拉菜单样式 - 修复滚动条问题 */
+.user-dropdown-menu {
+  z-index: 1100 !important;
+}
+
+.user-dropdown-menu .ant-dropdown-menu {
+  padding: 8px 0;
+  min-width: 140px;
+}
+
+.user-dropdown-menu .ant-dropdown-menu-item {
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .invite-info {
   margin-top: 16px;
 }
@@ -1041,22 +1120,23 @@ onMounted(() => {
 .invite-link-section {
   margin-top: 16px;
   padding: 12px;
-  background: #f0f7ff;
+  background: rgba(34, 197, 94, 0.06);
   border-radius: 8px;
-  border: 1px solid #91caff;
+  border: 1px solid rgba(34, 197, 94, 0.2);
 }
 
 .invite-link-section p {
   margin-bottom: 8px;
-  color: #1890ff;
+  color: var(--color-primary, #15803d);
   font-weight: 500;
 }
 
 .invite-detail {
   margin-top: 12px;
   padding: 12px;
-  background: #f8f9fa;
+  background: rgba(255, 255, 255, 0.6);
   border-radius: 8px;
+  border: 1px solid rgba(34, 197, 94, 0.1);
 }
 
 .invite-detail p {
@@ -1078,12 +1158,12 @@ onMounted(() => {
   gap: 10px;
   padding: 10px 6px;
   cursor: pointer;
-  border-bottom: 1px solid #f5f5f5;
+  border-bottom: 1px solid rgba(34, 197, 94, 0.1);
   transition: background-color 0.2s;
 }
 
 .modal-room-item:hover {
-  background-color: #fafafa;
+  background: rgba(34, 197, 94, 0.06);
 }
 
 .modal-room-item:last-child {
@@ -1098,19 +1178,34 @@ onMounted(() => {
 .modal-room-name {
   font-size: 13px;
   font-weight: 500;
-  color: #333;
+  color: #1f2937;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .modal-room-desc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   font-size: 11px;
-  color: #999;
+  color: #6b7280;
   margin-top: 2px;
-  white-space: nowrap;
+}
+
+.modal-room-desc > span:first-child {
+  flex: 1;
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-time {
+  flex-shrink: 0;
+  color: #9ca3af;
+  font-size: 10px;
 }
 
 .pagination-wrapper {
@@ -1131,7 +1226,7 @@ onMounted(() => {
 
 .room-detail-text p {
   margin: 4px 0;
-  color: #666;
+  color: #4b5563;
 }
 
 .room-detail-actions {
@@ -1143,7 +1238,7 @@ onMounted(() => {
 .link-tip {
   margin-top: 8px;
   font-size: 12px;
-  color: #666;
+  color: #6b7280;
 }
 
 .invite-content {

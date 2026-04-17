@@ -151,7 +151,7 @@ const fetchCreatedRooms = async () => {
   loading.value = true
   try {
     const res = await listMyCreatedRooms({
-      chatRoomQueryRequest: { pageNum: 1, pageSize: 20 }
+      chatRoomQueryRequest: { pageNum: 1, pageSize: 20 },
     } as any)
     if (res.data?.code === 0 && res.data.data) {
       createdRoomList.value = res.data.data.records || []
@@ -168,7 +168,7 @@ const fetchJoinedRooms = async () => {
   loading.value = true
   try {
     const res = await listMyJoinedRooms({
-      chatRoomQueryRequest: { pageNum: 1, pageSize: 20 }
+      chatRoomQueryRequest: { pageNum: 1, pageSize: 20 },
     } as any)
     if (res.data?.code === 0 && res.data.data) {
       joinedRoomList.value = res.data.data.records || []

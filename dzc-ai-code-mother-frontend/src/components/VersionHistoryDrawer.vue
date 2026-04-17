@@ -75,7 +75,7 @@
 </template>
 
 <script setup lang="ts">
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import myAxios from '../request'
@@ -193,27 +193,36 @@ const handleViewVersion = (version: VersionVO) => {
   })
 }
 
-const handleRollback = async (version: VersionVO) => {
+const handleRollback = (version: VersionVO) => {
   if (!props.appId) return
 
-  rollbacking.value = version.id
-  try {
-    const res = await myAxios.post('/version/rollback', {
-      versionId: version.id,
-      appId: props.appId,
-    })
-    if (res.data.code === 0) {
-      message.success('回退成功')
-      emit('rollback-success')
-      loadVersions()
-    } else {
-      message.error('回退失败：' + res.data.message)
-    }
-  } catch (error: any) {
-    message.error('回退失败：' + error.message)
-  } finally {
-    rollbacking.value = null
-  }
+  Modal.confirm({
+    title: '确认回退',
+    content: `确定要回退到 V${version.versionNo} 吗？当前版本将被替换，此操作不可撤销。`,
+    okText: '确认回退',
+    cancelText: '取消',
+    okType: 'danger',
+    onOk: async () => {
+      rollbacking.value = version.id
+      try {
+        const res = await myAxios.post('/version/rollback', {
+          versionId: version.id,
+          appId: props.appId,
+        })
+        if (res.data.code === 0) {
+          message.success('回退成功')
+          emit('rollback-success')
+          loadVersions()
+        } else {
+          message.error('回退失败：' + res.data.message)
+        }
+      } catch (error: any) {
+        message.error('回退失败：' + error.message)
+      } finally {
+        rollbacking.value = null
+      }
+    },
+  })
 }
 
 const handleClose = () => {
@@ -255,28 +264,28 @@ const formatTime = (time: string) => {
   display: flex;
   gap: 16px;
   padding: 16px;
-  background: #fafafa;
-  border-radius: 8px;
-  border: 1px solid #e8e8e8;
+  background: rgba(240, 253, 244, 0.5);
+  border-radius: 10px;
+  border: 1px solid rgba(34, 197, 94, 0.12);
   transition: all 0.3s;
 }
 
 .version-item:hover {
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 16px rgba(21, 128, 61, 0.1);
 }
 
 .version-item--current {
-  border-color: #52c41a;
-  background: #f6ffed;
+  border-color: var(--color-primary-light, #22c55e);
+  background: rgba(34, 197, 94, 0.06);
 }
 
 .version-thumbnail {
   flex-shrink: 0;
   width: 120px;
   height: 80px;
-  border-radius: 4px;
+  border-radius: 6px;
   overflow: hidden;
-  background: #e8e8e8;
+  background: rgba(34, 197, 94, 0.08);
 }
 
 .version-thumbnail img {
@@ -291,7 +300,7 @@ const formatTime = (time: string) => {
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #15803d 0%, #059669 100%);
   color: white;
   font-weight: bold;
   font-size: 18px;
@@ -312,18 +321,19 @@ const formatTime = (time: string) => {
 .version-number {
   font-size: 16px;
   font-weight: 600;
-  color: #262626;
+  color: #1f2937;
+  font-family: 'Lora', serif;
 }
 
 .version-meta {
   font-size: 12px;
-  color: #8c8c8c;
+  color: #6b7280;
   margin-bottom: 8px;
 }
 
 .version-summary {
   font-size: 14px;
-  color: #595959;
+  color: #4b5563;
   overflow: hidden;
   text-overflow: ellipsis;
   display: -webkit-box;
@@ -345,8 +355,8 @@ const formatTime = (time: string) => {
 .preview-container {
   width: 100%;
   height: 600px;
-  background: #f0f0f0;
-  border-radius: 4px;
+  background: rgba(240, 253, 244, 0.5);
+  border-radius: 6px;
   overflow: hidden;
 }
 

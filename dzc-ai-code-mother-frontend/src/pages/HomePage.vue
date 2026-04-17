@@ -4,7 +4,7 @@ import AppCard from '@/components/AppCard.vue'
 import { getDeployUrl } from '@/config/env'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { message } from 'ant-design-vue'
-import { onMounted, reactive, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -24,10 +24,118 @@ const myAppsPage = reactive({
 
 // 精选应用数据
 const featuredApps = ref<API.AppVO[]>([])
-const featuredAppsPage = reactive({
+const featuredLoading = ref(false)
+const featuredHasMore = ref(true)
+const featuredPage = reactive({
   current: 1,
-  pageSize: 6,
+  pageSize: 9,
   total: 0,
+})
+const sentinelRef = ref<HTMLElement | null>(null)
+let sentinelObserver: IntersectionObserver | null = null
+
+// 当前激活的标签页：'my' 我的作品, 'featured' 精选作品
+const activeTab = ref<'my' | 'featured'>('my')
+const previousTab = ref<'my' | 'featured'>('my')
+
+// ==================== 搜索筛选相关状态 ====================
+
+// 分类选项列表（与后端 AppConstant.CATEGORY_OPTIONS 保持一致）
+const CATEGORY_OPTIONS = [
+  { value: '', label: '全部分类' },
+  { value: 'website', label: '网站' },
+  { value: 'tool', label: '工具' },
+  { value: 'dataAnalysis', label: '数据分析' },
+  { value: 'eventPage', label: '活动页面' },
+  { value: 'managementPlatform', label: '管理平台' },
+  { value: 'userApp', label: '用户应用' },
+  { value: 'personalManagement', label: '个人管理' },
+]
+
+// 排序选项列表（与后端 AppConstant.SORT_OPTIONS 保持一致）
+const SORT_OPTIONS = [
+  { value: 'default', label: '默认排序' },
+  { value: 'createTime', label: '最新' },
+  { value: 'priority', label: '最热' },
+]
+
+// 搜索关键词
+const searchKeyword = ref('')
+
+// 选中的分类
+const selectedCategory = ref('')
+
+// 选中的排序方式
+const selectedSort = ref('default')
+
+// 描述文字打字机效果
+const descriptionText = ref('')
+const fullDescription = '代码自动生成,使创意应用立现。'
+const typewriterCursor = ref(true)
+const typewriterTimer = ref<number | null>(null)
+
+const startTypewriter = () => {
+  if (typewriterTimer.value) {
+    clearInterval(typewriterTimer.value)
+    typewriterTimer.value = null
+  }
+
+  let charIndex = 0
+  descriptionText.value = ''
+  typewriterCursor.value = true
+
+  typewriterTimer.value = window.setInterval(() => {
+    if (charIndex < fullDescription.length) {
+      descriptionText.value += fullDescription[charIndex]
+      charIndex++
+    } else {
+      if (typewriterTimer.value) {
+        clearInterval(typewriterTimer.value)
+        typewriterTimer.value = null
+      }
+      setTimeout(() => {
+        typewriterCursor.value = false
+      }, 1000)
+    }
+  }, 120)
+}
+
+onMounted(() => {
+  loadMyApps()
+  loadFeaturedApps()
+  setTimeout(() => {
+    startTypewriter()
+  }, 2000)
+})
+
+onUnmounted(() => {
+  destroyFeaturedObserver()
+  if (typewriterTimer.value) {
+    clearInterval(typewriterTimer.value)
+  }
+})
+
+// 切换标签页
+const switchTab = (tab: 'my' | 'featured') => {
+  previousTab.value = activeTab.value
+  activeTab.value = tab
+  if (tab === 'featured') {
+    resetFeaturedState()
+    nextTick(() => {
+      loadFeaturedApps()
+      setupFeaturedObserver()
+    })
+  } else {
+    destroyFeaturedObserver()
+  }
+}
+
+// 计算过渡方向：切换到精选作品从右往左，切换到我的作品从左往右
+const slideDirection = computed(() => {
+  if (activeTab.value === 'featured' && previousTab.value === 'my') {
+    return 'right-to-left'
+  }
+  return 'left-to-right'
 })
 
 // 设置提示词
@@ -96,28 +204,149 @@ const loadMyApps = async () => {
 }
 
 // 加载精选应用
-const loadFeaturedApps = async () => {
+const loadFeaturedApps = async (append = false) => {
+  if (featuredLoading.value || (!append && !featuredHasMore.value)) {
+    return
+  }
+
+  featuredLoading.value = true
   try {
+    // 根据排序选项确定排序字段和顺序
+    let sortField = 'createTime'
+    let sortOrder = 'desc'
+    if (selectedSort.value === 'priority') {
+      sortField = 'priority'
+      sortOrder = 'desc'
+    } else if (selectedSort.value === 'createTime') {
+      sortField = 'createTime'
+      sortOrder = 'desc'
+    }
+
     const res = await listGoodAppVoByPage({
-      pageNum: featuredAppsPage.current,
-      pageSize: featuredAppsPage.pageSize,
-      sortField: 'createTime',
-      sortOrder: 'desc',
+      pageNum: featuredPage.current,
+      pageSize: featuredPage.pageSize,
+      sortField,
+      sortOrder,
+      // 搜索关键词（标题搜索）
+      appName: searchKeyword.value || undefined,
     })
 
     if (res.data.code === 0 && res.data.data) {
-      featuredApps.value = res.data.data.records || []
-      featuredAppsPage.total = res.data.data.totalRow || 0
+      const newRecords = res.data.data.records || []
+      if (append) {
+        featuredApps.value = [...featuredApps.value, ...newRecords]
+      } else {
+        featuredApps.value = newRecords
+      }
+      featuredPage.total = Number(res.data.data.totalRow) || 0
+      featuredHasMore.value = featuredApps.value.length < featuredPage.total
+      if (featuredHasMore.value) {
+        featuredPage.current++
+      }
     }
   } catch (error) {
     console.error('加载精选应用失败：', error)
+  } finally {
+    featuredLoading.value = false
   }
 }
 
+// 懒加载
+let isLoadingMore = false
+
+const loadMoreFeaturedApps = () => {
+  if (isLoadingMore || !featuredHasMore.value || featuredLoading.value) {
+    return
+  }
+  isLoadingMore = true
+  loadFeaturedApps(true).finally(() => {
+    isLoadingMore = false
+  })
+}
+
+// 使用 IntersectionObserver 监听 sentinel 元素
+const setupFeaturedObserver = () => {
+  // 等待 DOM 更新后获取 sentinel 元素
+  nextTick(() => {
+    if (!sentinelRef.value) {
+      console.log('sentinelRef is null, retrying in 100ms')
+      setTimeout(() => setupFeaturedObserver(), 100)
+      return
+    }
+
+    console.log('setting up IntersectionObserver')
+    sentinelObserver = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          console.log('sentinel intersecting! loading more...')
+          loadMoreFeaturedApps()
+        }
+      },
+      { rootMargin: '200px' },
+    )
+    sentinelObserver.observe(sentinelRef.value)
+    console.log('sentinel observer set up')
+  })
+}
+
+const destroyFeaturedObserver = () => {
+  if (sentinelObserver) {
+    sentinelObserver.disconnect()
+    sentinelObserver = null
+  }
+}
+
+// 重置精选状态（同时重置筛选条件）
+const resetFeaturedState = () => {
+  featuredApps.value = []
+  featuredPage.current = 1
+  featuredHasMore.value = true
+  // 重置筛选条件
+  searchKeyword.value = ''
+  selectedCategory.value = ''
+  selectedSort.value = 'default'
+  destroyFeaturedObserver()
+}
+
+// ==================== 搜索筛选处理函数 ====================
+
+// 搜索处理函数
+const onSearch = () => {
+  // 重置页码并重新加载
+  featuredPage.current = 1
+  featuredApps.value = []
+  featuredHasMore.value = true
+  loadFeaturedApps()
+}
+
+// 分类选择处理函数
+const onCategoryChange = (value: string) => {
+  selectedCategory.value = value
+  // 重置页码并重新加载
+  featuredPage.current = 1
+  featuredApps.value = []
+  featuredHasMore.value = true
+  loadFeaturedApps()
+}
+
+// 排序选择处理函数
+const onSortChange = (value: string) => {
+  selectedSort.value = value
+  // 重置页码并重新加载
+  featuredPage.current = 1
+  featuredApps.value = []
+  featuredHasMore.value = true
+  loadFeaturedApps()
+}
+
 // 查看对话
-const viewChat = (appId: string | number | undefined) => {
+const viewChat = (appId: string | number | undefined, showInteraction?: boolean) => {
   if (appId) {
-    router.push(`/app/chat/${appId}?view=1`)
+    if (showInteraction) {
+      router.push(`/app/chat/${appId}?view=1&showInteraction=true`)
+    } else {
+      router.push(`/app/chat/${appId}?view=1`)
+    }
   }
 }
 
@@ -129,29 +358,29 @@ const viewWork = (app: API.AppVO) => {
   }
 }
 
-// 格式化时间函数已移除，不再需要显示创建时间
+// ==================== 页面加载与生命周期 ====================
 
 // 页面加载时获取数据
 onMounted(() => {
   loadMyApps()
   loadFeaturedApps()
+  setTimeout(() => {
+    startTypewriter()
+  }, 2000)
+})
 
-  // 鼠标跟随光效
-  const handleMouseMove = (e: MouseEvent) => {
-    const { clientX, clientY } = e
-    const { innerWidth, innerHeight } = window
-    const x = (clientX / innerWidth) * 100
-    const y = (clientY / innerHeight) * 100
-
-    document.documentElement.style.setProperty('--mouse-x', `${x}%`)
-    document.documentElement.style.setProperty('--mouse-y', `${y}%`)
+onUnmounted(() => {
+  destroyFeaturedObserver()
+  if (typewriterTimer.value) {
+    clearInterval(typewriterTimer.value)
   }
+})
 
-  document.addEventListener('mousemove', handleMouseMove)
-
-  // 清理事件监听器
-  return () => {
-    document.removeEventListener('mousemove', handleMouseMove)
+watch(activeTab, (newTab) => {
+  if (newTab === 'featured') {
+    setupFeaturedObserver()
+  } else {
+    destroyFeaturedObserver()
   }
 })
 </script>
@@ -161,12 +390,15 @@ onMounted(() => {
     <div class="container">
       <!-- 网站标题和描述 -->
       <div class="hero-section">
-        <h1 class="hero-title">想你所梦,构建无穷</h1>
-        <p class="hero-description">代码自动生成,使创意应用立现</p>
+        <h1 class="hero-title entrance-animate" style="animation-delay: 0ms">想你所梦,构建无穷</h1>
+        <p class="hero-description">
+          <span class="typewriter-text">{{ descriptionText }}</span>
+          <span v-if="typewriterCursor" class="typewriter-cursor">|</span>
+        </p>
       </div>
 
       <!-- 用户提示词输入框 -->
-      <div class="input-section">
+      <div class="input-section entrance-animate" style="animation-delay: 200ms">
         <a-textarea
           v-model:value="userPrompt"
           placeholder="帮我创建个人博客网站"
@@ -184,7 +416,7 @@ onMounted(() => {
       </div>
 
       <!-- 快捷按钮 -->
-      <div class="quick-actions">
+      <div class="quick-actions entrance-animate" style="animation-delay: 300ms">
         <a-button
           type="default"
           @click="
@@ -223,60 +455,104 @@ onMounted(() => {
         >
       </div>
 
-      <!-- 我的作品 -->
-      <div class="section">
-        <h2 class="section-title">📁我的作品</h2>
-        <div class="app-grid" :class="{ 'grid-mode': myApps.length > 0 }">
-          <template v-if="myApps.length === 0">
-            <div class="empty-placeholder">
-              <div class="empty-message">快去创建案例吧！！！</div>
-            </div>
-          </template>
-          <template v-else>
-            <AppCard
-              v-for="app in myApps"
-              :key="app.id"
-              :app="app"
-              @view-chat="viewChat"
-              @view-work="viewWork"
-            />
-          </template>
-        </div>
-        <div class="pagination-wrapper">
-          <a-pagination
-            v-model:current="myAppsPage.current"
-            v-model:page-size="myAppsPage.pageSize"
-            :total="myAppsPage.total"
-            :show-size-changer="false"
-            :show-total="(total: number) => `共 ${total} 个应用`"
-            @change="loadMyApps"
-          />
+      <!-- 作品切换标签 -->
+      <div class="tab-switch entrance-animate" style="animation-delay: 400ms">
+        <div class="tab-buttons">
+          <button class="tab-btn" :class="{ active: activeTab === 'my' }" @click="switchTab('my')">
+            📁 我的作品
+          </button>
+          <button
+            class="tab-btn"
+            :class="{ active: activeTab === 'featured' }"
+            @click="switchTab('featured')"
+          >
+            ❤️ 精选作品
+          </button>
         </div>
       </div>
 
-      <!-- 精选案例 -->
-      <div class="section">
-        <h2 class="section-title">❤️精选案例</h2>
-        <div class="featured-grid">
-          <AppCard
-            v-for="app in featuredApps"
-            :key="app.id"
-            :app="app"
-            :featured="true"
-            @view-chat="viewChat"
-            @view-work="viewWork"
-          />
-        </div>
-        <div class="pagination-wrapper">
-          <a-pagination
-            v-model:current="featuredAppsPage.current"
-            v-model:page-size="featuredAppsPage.pageSize"
-            :total="featuredAppsPage.total"
-            :show-size-changer="false"
-            :show-total="(total: number) => `共 ${total} 个案例`"
-            @change="loadFeaturedApps"
-          />
-        </div>
+      <!-- 搜索筛选栏（仅在精选作品标签页显示） -->
+      <div
+        v-if="activeTab === 'featured'"
+        class="filter-bar sticky-bar"
+      >
+        <a-input-search
+          v-model:value="searchKeyword"
+          placeholder="搜索作品标题"
+          class="filter-search"
+          @search="onSearch"
+          @pressEnter="onSearch"
+        />
+        <a-select v-model:value="selectedCategory" class="filter-select" @change="onCategoryChange">
+          <a-select-option
+            v-for="option in CATEGORY_OPTIONS"
+            :key="option.value"
+            :value="option.value"
+          >
+            {{ option.label }}
+          </a-select-option>
+        </a-select>
+        <a-select v-model:value="selectedSort" class="filter-select" @change="onSortChange">
+          <a-select-option v-for="option in SORT_OPTIONS" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </a-select-option>
+        </a-select>
+      </div>
+
+      <!-- 作品展示区域 -->
+      <div class="section entrance-animate" style="animation-delay: 500ms">
+        <transition :name="slideDirection" mode="out-in">
+          <div v-if="activeTab === 'my'" key="my">
+            <div class="app-grid" :class="{ 'grid-mode': myApps.length > 0 }">
+              <template v-if="myApps.length === 0">
+                <div class="empty-placeholder">
+                  <div class="empty-message">快去创建案例吧！！！</div>
+                </div>
+              </template>
+              <template v-else>
+                <AppCard
+                  v-for="app in myApps"
+                  :key="app.id"
+                  :app="app"
+                  @view-chat="viewChat"
+                  @view-work="viewWork"
+                />
+              </template>
+            </div>
+            <div class="pagination-wrapper">
+              <a-pagination
+                v-model:current="myAppsPage.current"
+                v-model:page-size="myAppsPage.pageSize"
+                :total="myAppsPage.total"
+                :show-size-changer="false"
+                :show-total="(total: number) => `共 ${total} 个应用`"
+                @change="loadMyApps"
+              />
+            </div>
+          </div>
+          <div v-else key="featured">
+            <div class="masonry-css">
+              <div v-for="(app, index) in featuredApps" :key="app.id" class="masonry-css-item">
+                <AppCard
+                  :app="app"
+                  :featured="true"
+                  :show-interaction="true"
+                  :class="['card-entrance', { 'card-visible': true }]"
+                  :style="{ animationDelay: `${(index % 12) * 0.05}s` }"
+                  @view-chat="viewChat"
+                  @view-work="viewWork"
+                />
+              </div>
+            </div>
+            <div ref="sentinelRef" class="sentinel-item"></div>
+            <div v-if="featuredLoading" class="loading-indicator">
+              <a-spin size="large" />
+            </div>
+            <div v-if="!featuredHasMore && featuredApps.length > 0" class="end-indicator">
+              <span>— 已加载全部内容 —</span>
+            </div>
+          </div>
+        </transition>
       </div>
     </div>
   </div>
@@ -288,131 +564,135 @@ onMounted(() => {
   margin: 0;
   padding: 0;
   min-height: 100vh;
-  /* background:
-    linear-gradient(180deg, #f8fafc 0%, #f1f5f9 8%, #e2e8f0 20%, #cbd5e1 100%),
-    radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, rgba(139, 92, 246, 0.12) 0%, transparent 50%),
-    radial-gradient(circle at 40% 40%, rgba(16, 185, 129, 0.08) 0%, transparent 50%); */
   position: relative;
-  overflow: hidden;
 }
 
-/* 科技感网格背景 */
 #homePage::before {
   content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background-image:
-    linear-gradient(rgba(59, 130, 246, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(59, 130, 246, 0.05) 1px, transparent 1px),
-    linear-gradient(rgba(139, 92, 246, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(139, 92, 246, 0.04) 1px, transparent 1px);
-  background-size:
-    100px 100px,
-    100px 100px,
-    20px 20px,
-    20px 20px;
+  position: fixed;
+  inset: 0;
+  background:
+    radial-gradient(ellipse 600px 500px at 10% 20%, rgba(34, 197, 94, 0.25) 0%, transparent 60%),
+    radial-gradient(ellipse 500px 400px at 90% 80%, rgba(5, 150, 105, 0.2) 0%, transparent 60%);
+  animation: softFloat 18s ease-in-out infinite;
   pointer-events: none;
-  animation: gridFloat 20s ease-in-out infinite;
+  z-index: 0;
 }
 
-/* 动态光效 */
 #homePage::after {
   content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
+  position: fixed;
+  inset: 0;
   background:
-    radial-gradient(
-      600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%),
-      rgba(59, 130, 246, 0.08) 0%,
-      rgba(139, 92, 246, 0.06) 40%,
-      transparent 80%
-    ),
-    linear-gradient(45deg, transparent 30%, rgba(59, 130, 246, 0.04) 50%, transparent 70%),
-    linear-gradient(-45deg, transparent 30%, rgba(139, 92, 246, 0.04) 50%, transparent 70%);
+    radial-gradient(ellipse 450px 380px at 85% 15%, rgba(217, 119, 6, 0.18) 0%, transparent 60%),
+    radial-gradient(ellipse 380px 320px at 15% 85%, rgba(34, 197, 94, 0.2) 0%, transparent 60%);
+  animation: softFloat 22s ease-in-out infinite reverse;
   pointer-events: none;
-  animation: lightPulse 8s ease-in-out infinite alternate;
+  z-index: 0;
 }
 
-@keyframes gridFloat {
+@keyframes softFloat {
   0%,
   100% {
-    transform: translate(0, 0);
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  25% {
+    transform: translate(15px, -20px) scale(1.05);
+    opacity: 1;
   }
   50% {
-    transform: translate(5px, 5px);
+    transform: translate(-10px, 10px) scale(0.98);
+    opacity: 0.9;
+  }
+  75% {
+    transform: translate(20px, 15px) scale(1.03);
+    opacity: 0.95;
   }
 }
 
-@keyframes lightPulse {
-  0% {
-    opacity: 0.3;
+@media (prefers-reduced-motion: reduce) {
+  #homePage::before,
+  #homePage::after {
+    animation: none;
   }
+
+  .entrance-animate {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
+@keyframes entranceFromBottom {
+  from {
+    opacity: 0;
+    transform: translateY(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes entranceFromLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-40px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.entrance-animate {
+  opacity: 0;
+  animation: entranceFromBottom 800ms cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.hero-title.entrance-animate {
+  animation: entranceFromLeft 1500ms cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
+}
+
+.typewriter-text {
+  display: inline;
+}
+
+.typewriter-cursor {
+  display: inline-block;
+  color: #15803d;
+  font-weight: 300;
+  margin-left: 2px;
+  animation: blink 0.8s step-end infinite;
+}
+
+@keyframes blink {
+  0%,
   100% {
-    opacity: 0.7;
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
   }
 }
 
 .container {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 20px;
+  padding: 0px 20px;
   position: relative;
   z-index: 2;
   width: 100%;
   box-sizing: border-box;
 }
 
-/* 移除居中光束效果 */
-
-/* 英雄区域 */
 .hero-section {
   text-align: center;
   padding: 80px 0 60px;
-  margin-bottom: 28px;
   color: #1e293b;
   position: relative;
   overflow: hidden;
-}
-
-.hero-section::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background:
-    radial-gradient(ellipse 800px 400px at center, rgba(59, 130, 246, 0.12) 0%, transparent 70%),
-    linear-gradient(45deg, transparent 30%, rgba(139, 92, 246, 0.05) 50%, transparent 70%),
-    linear-gradient(-45deg, transparent 30%, rgba(16, 185, 129, 0.04) 50%, transparent 70%);
-  animation: heroGlow 10s ease-in-out infinite alternate;
-}
-
-@keyframes heroGlow {
-  0% {
-    opacity: 0.6;
-    transform: scale(1);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1.02);
-  }
-}
-
-@keyframes rotate {
-  0% {
-    transform: translate(-50%, -50%) rotate(0deg);
-  }
-  100% {
-    transform: translate(-50%, -50%) rotate(360deg);
-  }
 }
 
 .hero-title {
@@ -420,36 +700,25 @@ onMounted(() => {
   font-weight: 700;
   margin: 0 0 20px;
   line-height: 1.2;
-  background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 50%, #10b981 100%);
+  background: linear-gradient(135deg, #15803d 0%, #059669 40%, #d97706 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
   letter-spacing: -1px;
   position: relative;
   z-index: 2;
-  animation: titleShimmer 3s ease-in-out infinite;
-}
-
-@keyframes titleShimmer {
-  0%,
-  100% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
+  font-family: 'Lora', serif;
 }
 
 .hero-description {
   font-size: 20px;
   margin: 0;
   opacity: 0.8;
-  color: #64748b;
+  color: #4b5563;
   position: relative;
   z-index: 2;
 }
 
-/* 输入区域 */
 .input-section {
   position: relative;
   margin: 0 auto 24px;
@@ -458,18 +727,10 @@ onMounted(() => {
 
 .prompt-input {
   border-radius: 16px;
-  border: none;
+  border: 1px solid rgba(34, 197, 94, 0.2);
   font-size: 16px;
   padding: 20px 60px 20px 20px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-}
-
-.prompt-input:focus {
-  background: rgba(255, 255, 255, 1);
-  box-shadow: 0 15px 50px rgba(0, 0, 0, 0.3);
-  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.72);
 }
 
 .input-actions {
@@ -481,7 +742,6 @@ onMounted(() => {
   align-items: center;
 }
 
-/* 快捷按钮 */
 .quick-actions {
   display: flex;
   gap: 12px;
@@ -494,53 +754,26 @@ onMounted(() => {
   border-radius: 25px;
   padding: 8px 20px;
   height: auto;
-  background: rgba(255, 255, 255, 0.8);
-  border: 1px solid rgba(59, 130, 246, 0.2);
-  color: #475569;
-  backdrop-filter: blur(15px);
-  transition: all 0.3s;
-  position: relative;
-  overflow: hidden;
-}
-
-.quick-actions .ant-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.1), transparent);
-  transition: left 0.5s;
-}
-
-.quick-actions .ant-btn:hover::before {
-  left: 100%;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px solid rgba(34, 197, 94, 0.2);
+  color: #374151;
 }
 
 .quick-actions .ant-btn:hover {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(59, 130, 246, 0.4);
-  color: #3b82f6;
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.2);
-}
-
-/* 区域标题 */
-.section {
-  margin-bottom: 60px;
+  background: rgba(255, 255, 255, 0.85);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: var(--color-primary, #15803d);
 }
 
 .section-title {
   font-size: 32px;
   font-weight: 600;
-  margin-bottom: 32px;
   color: #1e293b;
+  font-family: 'Lora', serif;
 }
 
-/* 我的作品区：仅在有项目时使用网格布局 */
 .app-grid {
-  margin-bottom: 32px;
+  margin-bottom: 12px;
 }
 
 .app-grid.grid-mode {
@@ -549,7 +782,6 @@ onMounted(() => {
   gap: 24px;
 }
 
-/* 空状态占位，保留原始高度并居中显示提示 */
 .empty-placeholder {
   width: 100%;
   height: 360px;
@@ -565,33 +797,14 @@ onMounted(() => {
   font-size: 36px;
   font-weight: 800;
   text-align: center;
-  background: linear-gradient(90deg, #6a11cb 0%, #2575fc 50%, #7bf1a8 100%);
-  background-size: 300% 300%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: #15803d;
   letter-spacing: 0.22em;
-  animation: gradientShift 2.8s ease-in-out infinite;
   position: absolute;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
-  text-shadow: 0 2px 6px rgba(20, 20, 20, 0.12);
 }
 
-@keyframes gradientShift {
-  0% {
-    background-position: 0% 50%;
-  }
-  50% {
-    background-position: 100% 50%;
-  }
-  100% {
-    background-position: 0% 50%;
-  }
-}
-
-/* 精选案例网格 */
 .featured-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
@@ -599,14 +812,62 @@ onMounted(() => {
   margin-bottom: 32px;
 }
 
-/* 分页 */
+/* CSS Columns 瀑布流布局 */
+.masonry-css {
+  column-count: 3;
+  column-gap: 24px;
+}
+
+.masonry-css-item {
+  break-inside: avoid;
+  margin-bottom: 24px;
+}
+
+@media (max-width: 1024px) {
+  .masonry-css {
+    column-count: 2;
+  }
+}
+
+@media (max-width: 640px) {
+  .masonry-css {
+    column-count: 1;
+  }
+}
+
+.sentinel-item {
+  width: 100%;
+  min-height: 80px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-top: 24px;
+}
+
+.loading-indicator {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 40px 0;
+}
+
+.loading-indicator .ant-spin {
+  color: #15803d;
+}
+
+.end-indicator {
+  text-align: center;
+  color: #6b7280;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+}
+
 .pagination-wrapper {
   display: flex;
   justify-content: center;
   margin-top: 32px;
 }
 
-/* 响应式设计 */
 @media (max-width: 768px) {
   .hero-title {
     font-size: 32px;
@@ -624,5 +885,189 @@ onMounted(() => {
   .quick-actions {
     justify-content: center;
   }
+}
+
+.tab-switch {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 40px;
+}
+
+.tab-buttons {
+  display: flex;
+  gap: 4px;
+  padding: 6px;
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 50px;
+  border: 1px solid rgba(34, 197, 94, 0.15);
+}
+
+.tab-btn {
+  padding: 12px 32px;
+  font-size: 15px;
+  font-weight: 500;
+  border: none;
+  border-radius: 50px;
+  cursor: pointer;
+  background: transparent;
+  color: #6b7280;
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.tab-btn::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: linear-gradient(135deg, #15803d 0%, #059669 100%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  z-index: -1;
+}
+
+.tab-btn:hover {
+  color: #1f2937;
+}
+
+.tab-btn:hover::before {
+  opacity: 0.1;
+}
+
+.tab-btn.active {
+  background: linear-gradient(135deg, #15803d 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 4px 15px rgba(21, 128, 61, 0.3);
+  transform: translateY(-1px);
+}
+
+/* 搜索筛选栏样式 */
+.filter-bar {
+  display: flex;
+  gap: 42px;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 32px;
+  padding: 16px 24px;
+  background: rgba(255, 255, 255, 0.7);
+  border-radius: 12px;
+  border: 1px solid rgba(34, 197, 94, 0.15);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+  flex-wrap: wrap;
+  transition: box-shadow 0.3s ease;
+}
+
+/* 吸顶效果 */
+.sticky-bar {
+  position: sticky;
+  top: 88px;
+  z-index: 999;
+}
+
+.sticky-bar.is-sticky {
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 4px 20px rgba(21, 128, 61, 0.12);
+  border-color: rgba(34, 197, 94, 0.2);
+  border-radius: 0 0 12px 12px;
+}
+
+.filter-search {
+  flex: 1;
+  min-width: 240px;
+  max-width: 400px;
+}
+
+.filter-search :deep(.ant-input) {
+  border-radius: 8px;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.filter-search :deep(.ant-input-group) {
+  display: flex;
+  gap: 4px;
+  height: 40px;
+}
+
+.filter-search :deep(.ant-input) {
+  border-radius: 8px;
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.filter-search :deep(.ant-input-search-button) {
+  border-radius: 8px;
+  background: linear-gradient(135deg, #15803d 0%, #059669 100%);
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.filter-search :deep(.ant-input-group-addon) {
+  border: none;
+  background: transparent;
+  margin-top: 4px;
+}
+
+.filter-select {
+  min-width: 140px;
+}
+
+.filter-select :deep(.ant-select-selector) {
+  border: 1px solid rgba(34, 197, 94, 0.2);
+}
+
+.filter-select :deep(.ant-select-focused .ant-select-selector) {
+  border-color: #15803d;
+  box-shadow: 0 0 0 2px rgba(21, 128, 61, 0.1);
+}
+
+@media (max-width: 768px) {
+  .filter-bar {
+    flex-direction: column;
+    gap: 12px;
+    padding: 16px;
+  }
+
+  .filter-search,
+  .filter-select {
+    width: 100%;
+    max-width: none;
+    min-width: auto;
+  }
+}
+
+.right-to-left-enter-active,
+.right-to-left-leave-active {
+  transition: all 0.5s ease;
+}
+
+.right-to-left-enter-from {
+  opacity: 0;
+  transform: translateX(60px);
+}
+
+.right-to-left-leave-to {
+  opacity: 0;
+  transform: translateX(-60px);
+}
+
+.left-to-right-enter-active,
+.left-to-right-leave-active {
+  transition: all 0.5s ease;
+}
+
+.left-to-right-enter-from {
+  opacity: 0;
+  transform: translateX(-60px);
+}
+
+.left-to-right-leave-to {
+  opacity: 0;
+  transform: translateX(60px);
 }
 </style>

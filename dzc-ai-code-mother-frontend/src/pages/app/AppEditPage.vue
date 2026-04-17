@@ -292,6 +292,8 @@ onMounted(() => {
   margin: 0;
   font-size: 24px;
   font-weight: 600;
+  font-family: 'Lora', serif;
+  color: var(--color-foreground, #0f172a);
 }
 
 .edit-container {
@@ -301,23 +303,23 @@ onMounted(() => {
 .cover-preview {
   margin-top: 12px;
   padding: 12px;
-  border: 1px solid #e8e8e8;
+  border: 1px solid rgba(34, 197, 94, 0.15);
   border-radius: 6px;
-  background: #fafafa;
+  background: rgba(240, 253, 244, 0.5);
 }
 
 .form-tip {
   font-size: 12px;
-  color: #999;
+  color: #6b7280;
   margin-top: 4px;
 }
 
 :deep(.ant-card-head) {
-  background: #fafafa;
+  background: rgba(240, 253, 244, 0.5);
 }
 
 :deep(.ant-descriptions-item-label) {
-  background: #fafafa;
+  background: rgba(240, 253, 244, 0.5);
   font-weight: 500;
 }
 </style>

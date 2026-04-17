@@ -21,33 +21,29 @@
 
 <style scoped>
 .footer {
-  background: linear-gradient(
-    120deg,
-    rgba(248, 250, 252, 0.95),
-    rgba(187, 247, 208, 0.9),
-    rgba(191, 219, 254, 0.9)
-  );
+  background: rgba(240, 253, 244, 0.82);
   backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
   text-align: center;
   padding: 20px;
-  margin-top: 40px;
-  border-top: 1px solid rgba(74, 222, 128, 0.4);
-  box-shadow: 0 -8px 24px rgba(14, 165, 233, 0.16);
+  border-top: 1px solid rgba(34, 197, 94, 0.2);
+  box-shadow: 0 -6px 20px rgba(21, 128, 61, 0.08);
 }
 
 .copyright {
   margin: 0;
-  color: #0f172a;
+  color: var(--color-foreground, #0f172a);
   font-size: 14px;
 }
 
 .author-link {
-  color: #0284c7;
+  color: var(--color-primary, #15803d);
   text-decoration: none;
   font-weight: 500;
+  transition: color 0.2s;
 }
 
 .author-link:hover {
-  color: #0ea5e9;
+  color: var(--color-primary-light, #22c55e);
 }
 </style>

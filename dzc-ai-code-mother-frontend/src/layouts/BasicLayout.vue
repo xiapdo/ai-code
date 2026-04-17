@@ -21,7 +21,6 @@ import GlobalHeader from '@/components/GlobalHeader.vue'
   background: none;
   position: relative;
   min-height: 100vh;
-  overflow: hidden;
 }
 
 .basic-layout::before,
@@ -35,9 +34,9 @@ import GlobalHeader from '@/components/GlobalHeader.vue'
 
 .basic-layout::before {
   background:
-    radial-gradient(circle at 10% 20%, rgba(134, 239, 172, 0.35) 0, transparent 45%),
-    radial-gradient(circle at 90% 30%, rgba(96, 165, 250, 0.3) 0, transparent 50%),
-    radial-gradient(circle at 50% 80%, rgba(248, 250, 252, 0.4) 0, transparent 60%);
+    radial-gradient(circle at 10% 20%, rgba(34, 197, 94, 0.2) 0, transparent 45%),
+    radial-gradient(circle at 85% 30%, rgba(5, 150, 105, 0.18) 0, transparent 50%),
+    radial-gradient(circle at 50% 80%, rgba(217, 119, 6, 0.08) 0, transparent 60%);
   filter: blur(30px);
   animation: blossomDrift 26s linear infinite;
 }
@@ -46,12 +45,12 @@ import GlobalHeader from '@/components/GlobalHeader.vue'
   background-image:
     radial-gradient(
       circle 120px at var(--petal-x, 30%) 20%,
-      rgba(248, 113, 113, 0.2),
+      rgba(34, 197, 94, 0.12),
       transparent 60%
     ),
     radial-gradient(
       circle 160px at 70% var(--petal-y, 70%),
-      rgba(250, 204, 21, 0.15),
+      rgba(217, 119, 6, 0.08),
       transparent 70%
     );
   animation: twinkleSoft 18s ease-in-out infinite alternate;

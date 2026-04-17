@@ -215,6 +215,50 @@ export async function getChatMessages(
   })
 }
 
+/** 管理员分页获取群聊列表 POST /chat-room/admin/list/page/vo */
+export async function listChatRoomByPageForAdmin(
+  body: API.ChatRoomQueryRequest,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponsePageChatRoomVO>('/chat-room/admin/list/page/vo', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
+/** 管理员解散群聊 POST /chat-room/admin/dissolve */
+export async function dissolveRoomByAdmin(
+  body: API.DeleteRequest,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseBoolean>('/chat-room/admin/dissolve', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
+/** 管理员获取群聊详情 GET /chat-room/admin/get/vo */
+export async function getChatRoomVOByAdmin(
+  params: API.getChatRoomVOByAdminParams,
+  options?: { [key: string]: any }
+) {
+  return request<API.BaseResponseChatRoomVO>('/chat-room/admin/get/vo', {
+    method: 'GET',
+    params: {
+      ...params,
+    },
+    ...(options || {}),
+  })
+}
+
 /** 此处后端没有提供注释 POST /chat-room/update */
 export async function updateChatRoom(
   body: API.ChatRoomUpdateRequest,

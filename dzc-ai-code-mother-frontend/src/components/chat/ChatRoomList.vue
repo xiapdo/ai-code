@@ -140,7 +140,7 @@ const handleInvite = (record: API.ChatRoomVO) => {
 }
 
 .member-count {
-  color: #1890ff;
+  color: var(--color-primary, #15803d);
   font-size: 12px;
   margin: 0;
 }

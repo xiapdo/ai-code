@@ -4,24 +4,41 @@
     <div class="header-bar">
       <div class="header-left">
         <h1 class="app-name">{{ appInfo?.appName || '网站生成器' }}</h1>
-        <a-tag v-if="appInfo?.codeGenType" color="blue" class="code-gen-type-tag">
+        <a-tag v-if="appInfo?.codeGenType" color="green" class="code-gen-type-tag">
           {{ formatCodeGenType(appInfo.codeGenType) }}
         </a-tag>
       </div>
       <div class="header-right">
-<a-button type="default" @click="showVersionHistory" :disabled="!isOwner">
-    <template #icon>
-      <HistoryOutlined />
-</template>
-        历史版本
-      </a-button>
-      <a-button type="default" @click="showAppDetail">
+        <a-button
+          v-if="isOwner && !isReadonly"
+          type="default"
+          @click="shareModalVisible = true"
+          :disabled="messages.length < 2"
+        >
+          <template #icon>
+            <ShareAltOutlined />
+          </template>
+          分享
+        </a-button>
+        <a-button
+          v-if="!isReadonly"
+          type="default"
+          @click="showVersionHistory"
+          :disabled="!isOwner"
+        >
+          <template #icon>
+            <HistoryOutlined />
+          </template>
+          历史版本
+        </a-button>
+        <a-button v-if="!isReadonly" type="default" @click="showAppDetail">
           <template #icon>
             <InfoCircleOutlined />
           </template>
           应用详情
         </a-button>
         <a-button
+          v-if="!isReadonly"
           type="primary"
           ghost
           @click="downloadCode"
@@ -33,7 +50,7 @@
           </template>
           下载代码
         </a-button>
-        <a-button type="primary" @click="deployApp" :loading="deploying">
+        <a-button v-if="!isReadonly" type="primary" @click="deployApp" :loading="deploying">
           <template #icon>
             <CloudUploadOutlined />
           </template>
@@ -115,7 +132,7 @@
         </a-alert>
 
         <!-- 用户消息输入框 -->
-        <div class="input-container">
+        <div v-if="!isReadonly" class="input-container">
           <div class="input-wrapper">
             <a-tooltip v-if="!isOwner" title="无法在别人的作品下对话哦~" placement="top">
               <a-textarea
@@ -155,6 +172,32 @@
       <div class="preview-section">
         <div class="preview-header">
           <h3>生成后的网页展示</h3>
+          <div v-if="showInteraction" class="interaction-buttons">
+            <a-button type="text" @click="handleToggleLike" :class="{ liked: isLiked }">
+              <template #icon>
+                <LikeOutlined
+                  :style="{
+                    color: isLiked ? '#ff4d4f' : '#888',
+                    fontSize: '18px',
+                    transition: 'all 0.3s',
+                  }"
+                />
+              </template>
+              <span :style="{ color: isLiked ? '#ff4d4f' : '#888' }">{{ likeCount }}</span>
+            </a-button>
+            <a-button type="text" @click="handleToggleCollect" :class="{ collected: isCollected }">
+              <template #icon>
+                <StarOutlined
+                  :style="{
+                    color: isCollected ? '#faad14' : '#888',
+                    fontSize: '18px',
+                    transition: 'all 0.3s',
+                  }"
+                />
+              </template>
+              <span :style="{ color: isCollected ? '#faad14' : '#888' }">{{ collectCount }}</span>
+            </a-button>
+          </div>
           <div class="preview-actions">
             <a-button
               v-if="isOwner && previewUrl"
@@ -174,6 +217,12 @@
                 <ExportOutlined />
               </template>
               新窗口打开
+            </a-button>
+            <a-button v-if="showInteraction" type="link" @click="openCommentDrawer">
+              <template #icon>
+                <MessageOutlined />
+              </template>
+              评论
             </a-button>
           </div>
         </div>
@@ -219,16 +268,35 @@
       :app-id="appId"
       @rollback-success="handleRollbackSuccess"
     />
+
+    <ShareToChatRoomModal
+      v-model:open="shareModalVisible"
+      :app-id="appId"
+      :app-name="appInfo?.appName"
+      :cover="appInfo?.cover"
+      :code-gen-type="appInfo?.codeGenType"
+      :version-no="appInfo?.versionNo"
+      @share-success="handleShareSuccess"
+    />
+
+    <AppCommentDrawer
+      v-model:open="commentDrawerVisible"
+      :app-id="appId as number"
+      :app-name="appInfo?.appName"
+      :highlight-comment-id="highlightCommentId"
+      @comment-added="handleCommentAdded"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import {
-  deleteApp as deleteAppApi,
-  deployApp as deployAppApi,
-  getAppVoById,
+    deleteApp as deleteAppApi,
+    deployApp as deployAppApi,
+    getAppVoById,
 } from '@/api/appController'
 import { listAppChatHistory } from '@/api/chatHistoryController'
+import { getInteractionStatus, toggleCollect, toggleLike } from '@/api/interactionController'
 import request from '@/request'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { CodeGenTypeEnum, formatCodeGenType } from '@/utils/codeGenTypes'
@@ -238,22 +306,27 @@ import { useRoute, useRouter } from 'vue-router'
 
 import { default as chatAvatar } from '@/assets/12.jpg'
 import { default as defaultAvatar } from '@/assets/aiAvatar.png'
+import AppCommentDrawer from '@/components/AppCommentDrawer.vue'
 import AppDetailModal from '@/components/AppDetailModal.vue'
 import DeploySuccessModal from '@/components/DeploySuccessModal.vue'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
+import ShareToChatRoomModal from '@/components/ShareToChatRoomModal.vue'
 import VersionHistoryDrawer from '@/components/VersionHistoryDrawer.vue'
 import { API_BASE_URL, getStaticPreviewUrl } from '@/config/env'
 import { VisualEditor, type ElementInfo } from '@/utils/visualEditor'
 
 import {
-  CloudUploadOutlined,
-  DownloadOutlined,
-  EditOutlined,
-  ExportOutlined,
-  HistoryOutlined,
-  InfoCircleOutlined,
-  SendOutlined,
-  TeamOutlined,
+    CloudUploadOutlined,
+    DownloadOutlined,
+    EditOutlined,
+    ExportOutlined,
+    HistoryOutlined,
+    InfoCircleOutlined,
+    LikeOutlined,
+    MessageOutlined,
+    SendOutlined,
+    ShareAltOutlined,
+    StarOutlined,
 } from '@ant-design/icons-vue'
 
 const route = useRoute()
@@ -313,11 +386,36 @@ const isAdmin = computed(() => {
   return loginUserStore.loginUser.userRole === 'admin'
 })
 
+const isReadonly = computed(() => {
+  return route.query.readonly === 'true'
+})
+
+const showInteraction = computed(() => {
+  return route.query.showInteraction === 'true'
+})
+
+const exitReadonly = () => {
+  router.replace({ query: {} })
+}
+
 // 应用详情相关
 const appDetailVisible = ref(false)
 
 // 版本历史相关
 const versionHistoryVisible = ref(false)
+
+// 评论抽屉相关
+const commentDrawerVisible = ref(false)
+const highlightCommentId = ref<number | undefined>(undefined)
+
+// 互动状态
+const likeCount = ref(0)
+const collectCount = ref(0)
+const isLiked = ref(false)
+const isCollected = ref(false)
+
+// 分享相关
+const shareModalVisible = ref(false)
 
 // 显示应用详情
 const showAppDetail = () => {
@@ -341,6 +439,83 @@ const handleRollbackSuccess = () => {
   loadChatHistory()
 }
 
+const handleShareSuccess = (roomId: string | number, roomName: string) => {
+  message.success(`已分享到 ${roomName}`)
+}
+
+// 互动相关方法
+const openCommentDrawer = () => {
+  commentDrawerVisible.value = true
+}
+
+const handleCommentAdded = () => {
+  fetchInteractionStatus()
+}
+
+const fetchInteractionStatus = async () => {
+  if (!appId.value) return
+  try {
+    const res = await getInteractionStatus(appId.value as number)
+    if (res.data.code === 0 && res.data.data) {
+      const data = res.data.data
+      likeCount.value = data.likeCount || 0
+      collectCount.value = data.collectCount || 0
+      isLiked.value = data.isLiked || false
+      isCollected.value = data.isCollected || false
+    }
+  } catch (error) {
+    console.error('获取互动状态失败:', error)
+  }
+}
+
+const handleToggleLike = async () => {
+  if (!loginUserStore.loginUser.id) {
+    message.warning('请先登录')
+    return
+  }
+  try {
+    const res = await toggleLike(appId.value as number)
+    if (res.data.code === 0 && res.data.data !== undefined) {
+      isLiked.value = res.data.data
+      likeCount.value += isLiked.value ? 1 : -1
+      if (isLiked.value) {
+        message.success({
+          content: '点赞成功！',
+          icon: '👍',
+        })
+      } else {
+        message.info('已取消点赞')
+      }
+    }
+  } catch (error) {
+    message.error('操作失败')
+  }
+}
+
+const handleToggleCollect = async () => {
+  if (!loginUserStore.loginUser.id) {
+    message.warning('请先登录')
+    return
+  }
+  try {
+    const res = await toggleCollect(appId.value as number)
+    if (res.data.code === 0 && res.data.data !== undefined) {
+      isCollected.value = res.data.data
+      collectCount.value += isCollected.value ? 1 : -1
+      if (isCollected.value) {
+        message.success({
+          content: '收藏成功！',
+          icon: '⭐',
+        })
+      } else {
+        message.info('已取消收藏')
+      }
+    }
+  } catch (error) {
+    message.error('操作失败')
+  }
+}
+
 // 滚动到指定的消息索引
 const scrollToMessageIndex = (index: number) => {
   if (messagesContainer.value) {
@@ -352,7 +527,7 @@ const scrollToMessageIndex = (index: number) => {
       const targetScrollTop = scrollTop + elementRect.top - containerRect.top - 20
       messagesContainer.value.scrollTo({
         top: targetScrollTop,
-        behavior: 'smooth'
+        behavior: 'smooth',
       })
       return true
     }
@@ -399,7 +574,7 @@ watch(
       router.replace({ query: {} })
     }
   },
-  { immediate: true }
+  { immediate: true },
 )
 
 // 加载对话历史
@@ -854,6 +1029,15 @@ const getInputPlaceholder = () => {
 // 页面加载时获取应用信息
 onMounted(() => {
   fetchAppInfo()
+  fetchInteractionStatus()
+
+  // 检查是否需要自动打开评论抽屉
+  if (route.query.openCommentDrawer === 'true') {
+    commentDrawerVisible.value = true
+  }
+  if (route.query.highlightCommentId) {
+    highlightCommentId.value = Number(route.query.highlightCommentId)
+  }
 
   // 监听 iframe 消息
   window.addEventListener('message', (event) => {
@@ -873,7 +1057,9 @@ onUnmounted(() => {
   display: flex;
   flex-direction: column;
   padding: 16px;
-  background: #fdfdfd;
+  background:
+    radial-gradient(ellipse at 10% 90%, rgba(34, 197, 94, 0.08) 0, transparent 50%),
+    radial-gradient(ellipse at 90% 10%, rgba(5, 150, 105, 0.06) 0, transparent 50%), #f0fdf4;
 }
 
 /* 顶部栏 */
@@ -881,7 +1067,12 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: 12px 20px;
+  background: rgba(255, 255, 255, 0.72);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 4px 20px rgba(21, 128, 61, 0.08);
 }
 
 .header-left {
@@ -898,12 +1089,13 @@ onUnmounted(() => {
   margin: 0;
   font-size: 18px;
   font-weight: 600;
-  color: #1a1a1a;
+  color: var(--color-primary-dark, #166534);
+  font-family: 'Lora', serif;
 }
 
 .header-right {
   display: flex;
-  gap: 12px;
+  gap: 8px;
 }
 
 /* 主要内容区域 */
@@ -920,21 +1112,52 @@ onUnmounted(() => {
   flex: 2;
   display: flex;
   flex-direction: column;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.65);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 4px 24px rgba(21, 128, 61, 0.06);
   overflow: hidden;
 }
 
 .messages-container {
   flex: 0.9;
-  padding: 16px;
+  padding: 20px;
   overflow-y: auto;
   scroll-behavior: smooth;
+  background:
+    radial-gradient(ellipse at 20% 0%, rgba(187, 247, 208, 0.4) 0, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(167, 243, 208, 0.3) 0, transparent 50%),
+    linear-gradient(
+      180deg,
+      rgba(240, 253, 244, 0.6) 0%,
+      #f0fdf4 30%,
+      #f0fdf4 70%,
+      rgba(240, 253, 244, 0.6) 100%
+    );
 }
 
 .message-item {
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  animation: messageSlideIn 0.45s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+@keyframes messageSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+  70% {
+    transform: translateY(1px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .user-message {
@@ -944,6 +1167,17 @@ onUnmounted(() => {
   gap: 8px;
 }
 
+.user-message .message-content {
+  transition: box-shadow 0.3s ease;
+  box-shadow: 0 2px 6px rgba(21, 128, 61, 0.08);
+}
+
+.user-message:hover .message-content {
+  box-shadow:
+    0 8px 24px rgba(21, 128, 61, 0.2),
+    0 2px 8px rgba(21, 128, 61, 0.12);
+}
+
 .ai-message {
   display: flex;
   justify-content: flex-start;
@@ -951,23 +1185,44 @@ onUnmounted(() => {
   gap: 8px;
 }
 
+.ai-message .message-content {
+  transition: box-shadow 0.3s ease;
+  box-shadow: 0 2px 6px rgba(21, 128, 61, 0.06);
+}
+
+.ai-message:hover .message-content {
+  box-shadow:
+    0 8px 24px rgba(21, 128, 61, 0.14),
+    0 2px 8px rgba(21, 128, 61, 0.08);
+}
+
 .message-content {
   max-width: 70%;
-  padding: 12px 16px;
-  border-radius: 12px;
-  line-height: 1.5;
+  padding: 12px 18px;
+  border-radius: 18px;
+  line-height: 1.6;
   word-wrap: break-word;
+  font-size: 14px;
 }
 
 .user-message .message-content {
-  background: #1890ff;
+  background: linear-gradient(
+    135deg,
+    var(--color-primary, #15803d),
+    var(--color-primary-dark, #166534)
+  );
   color: white;
+  border-bottom-right-radius: 6px;
+  box-shadow: 0 4px 12px rgba(21, 128, 61, 0.25);
 }
 
 .ai-message .message-content {
-  background: #f5f5f5;
-  color: #1a1a1a;
-  padding: 8px 12px;
+  background: linear-gradient(135deg, rgba(240, 253, 244, 0.9), rgba(220, 252, 231, 0.85));
+  color: var(--color-primary-dark, #166534);
+  padding: 14px 18px;
+  border-bottom-left-radius: 6px;
+  border: 1px solid rgba(187, 247, 208, 0.5);
+  box-shadow: 0 2px 8px rgba(21, 128, 61, 0.08);
 }
 
 .message-avatar {
@@ -975,14 +1230,14 @@ onUnmounted(() => {
 }
 
 .ai-avatar-digital {
-  width: 52px;
-  height: 52px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
-  background: radial-gradient(circle at 30% 30%, rgba(255, 255, 255, 0.9), rgba(15, 23, 42, 0.9));
+  background: radial-gradient(circle at 30% 30%, rgba(134, 239, 172, 0.9), rgba(21, 128, 61, 0.9));
   position: relative;
   box-shadow:
-    0 0 12px rgba(56, 189, 248, 0.45),
-    inset 0 0 14px rgba(14, 165, 233, 0.6);
+    0 0 12px rgba(34, 197, 94, 0.35),
+    inset 0 0 14px rgba(134, 239, 172, 0.6);
   animation: ai-avatar-float 4s ease-in-out infinite;
   overflow: hidden;
 }
@@ -1002,9 +1257,9 @@ onUnmounted(() => {
   width: 48%;
   height: 48%;
   border-radius: 50%;
-  background: conic-gradient(from 90deg, rgba(14, 165, 233, 0.8), rgba(59, 130, 246, 0.8));
+  background: conic-gradient(from 90deg, rgba(34, 197, 94, 0.8), rgba(5, 150, 105, 0.8));
   animation: ai-avatar-rotate 5s linear infinite;
-  box-shadow: 0 0 10px rgba(14, 165, 233, 0.8);
+  box-shadow: 0 0 10px rgba(34, 197, 94, 0.8);
 }
 
 @keyframes ai-avatar-pulse {
@@ -1045,7 +1300,8 @@ onUnmounted(() => {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #666;
+  color: var(--color-primary, #15803d);
+  font-size: 13px;
 }
 
 /* 加载更多按钮 */
@@ -1055,18 +1311,36 @@ onUnmounted(() => {
   margin-bottom: 16px;
 }
 
+.load-more-container :deep(.ant-btn-link) {
+  color: var(--color-primary, #15803d);
+}
+
 /* 输入区域 */
 .input-container {
-  padding: 16px;
-  background: white;
+  padding: 16px 20px;
+  background: rgba(240, 253, 244, 0.5);
+  border-top: 1px solid rgba(187, 247, 208, 0.3);
 }
 
 .input-wrapper {
   position: relative;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(187, 247, 208, 0.4);
+  overflow: hidden;
+  transition: all var(--transition-fast);
+}
+
+.input-wrapper:focus-within {
+  border-color: var(--color-primary-light, #22c55e);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
 }
 
 .input-wrapper .ant-input {
-  padding-right: 50px;
+  padding-right: 60px;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
 .input-actions {
@@ -1080,9 +1354,11 @@ onUnmounted(() => {
   flex: 3;
   display: flex;
   flex-direction: column;
-  background: white;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  background: rgba(255, 255, 255, 0.65);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 4px 24px rgba(21, 128, 61, 0.06);
   overflow: hidden;
 }
 
@@ -1090,14 +1366,16 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid #e8e8e8;
+  padding: 16px 20px;
+  border-bottom: 1px solid rgba(187, 247, 208, 0.3);
+  background: rgba(240, 253, 244, 0.4);
 }
 
 .preview-header h3 {
   margin: 0;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
+  color: var(--color-primary-dark, #166534);
 }
 
 .preview-actions {
@@ -1109,6 +1387,7 @@ onUnmounted(() => {
   flex: 1;
   position: relative;
   overflow: hidden;
+  background: #ffffff;
 }
 
 .preview-placeholder {
@@ -1117,12 +1396,13 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #666;
+  color: var(--color-secondary, #059669);
 }
 
 .placeholder-icon {
   font-size: 48px;
   margin-bottom: 16px;
+  opacity: 0.5;
 }
 
 .preview-loading {
@@ -1131,7 +1411,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #666;
+  color: var(--color-primary, #15803d);
 }
 
 .preview-loading p {
@@ -1209,39 +1489,104 @@ onUnmounted(() => {
     font-family: 'Monaco', 'Menlo', monospace;
     font-size: 14px;
     font-weight: 600;
-    color: #007bff;
+    color: var(--color-primary, #15803d);
   }
 
   .element-id {
-    color: #28a745;
+    color: var(--color-secondary, #059669);
     margin-left: 4px;
   }
 
   .element-class {
-    color: #ffc107;
+    color: var(--color-accent, #d97706);
     margin-left: 4px;
   }
 
   .element-selector-code {
     font-family: 'Monaco', 'Menlo', monospace;
-    background: #f6f8fa;
+    background: rgba(240, 253, 244, 0.8);
     padding: 2px 4px;
     border-radius: 3px;
     font-size: 12px;
-    color: #d73a49;
-    border: 1px solid #e1e4e8;
+    color: #dc2626;
+    border: 1px solid rgba(187, 247, 208, 0.4);
   }
 
   /* 编辑模式按钮样式 */
   .edit-mode-active {
-    background-color: #52c41a !important;
-    border-color: #52c41a !important;
+    background-color: var(--color-primary, #15803d) !important;
+    border-color: var(--color-primary, #15803d) !important;
     color: white !important;
   }
 
   .edit-mode-active:hover {
-    background-color: #73d13d !important;
-    border-color: #73d13d !important;
+    background-color: var(--color-primary-light, #22c55e) !important;
+    border-color: var(--color-primary-light, #22c55e) !important;
+  }
+
+  /* 互动按钮样式 */
+  .interaction-buttons {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-right: 12px;
+  }
+
+  .interaction-buttons .ant-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    transition: all 0.3s ease;
+  }
+
+  .interaction-buttons .ant-btn:hover {
+    background-color: rgba(0, 0, 0, 0.05);
+  }
+
+  .liked {
+    animation: likeAnimation 0.5s ease;
+  }
+
+  .collected {
+    animation: collectAnimation 0.5s ease;
+  }
+
+  @keyframes likeAnimation {
+    0% {
+      transform: scale(1);
+    }
+    25% {
+      transform: scale(1.3);
+    }
+    50% {
+      transform: scale(0.95);
+    }
+    75% {
+      transform: scale(1.1);
+    }
+    100% {
+      transform: scale(1);
+    }
+  }
+
+  @keyframes collectAnimation {
+    0% {
+      transform: scale(1) rotate(0deg);
+    }
+    25% {
+      transform: scale(1.2) rotate(-10deg);
+    }
+    50% {
+      transform: scale(0.95) rotate(5deg);
+    }
+    75% {
+      transform: scale(1.1) rotate(-5deg);
+    }
+    100% {
+      transform: scale(1) rotate(0deg);
+    }
   }
 }
 </style>

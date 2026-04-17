@@ -3,12 +3,7 @@
     <a-card class="main-card" title="群聊" :bordered="false">
       <a-tabs v-model:activeKey="activeTab" centered @change="handleTabChange">
         <a-tab-pane key="create" tab="创建群聊">
-          <a-form
-            ref="formRef"
-            :model="createForm"
-            :rules="createRules"
-            layout="vertical"
-          >
+          <a-form ref="formRef" :model="createForm" :rules="createRules" layout="vertical">
             <a-form-item label="群聊名称" name="roomName">
               <a-input
                 v-model:value="createForm.roomName"
@@ -34,12 +29,7 @@
         </a-tab-pane>
 
         <a-tab-pane key="join" tab="加入群聊">
-          <a-form
-            ref="joinFormRef"
-            :model="joinForm"
-            :rules="joinRules"
-            layout="vertical"
-          >
+          <a-form ref="joinFormRef" :model="joinForm" :rules="joinRules" layout="vertical">
             <a-form-item label="邀请链接" name="inviteCode">
               <a-input
                 v-model:value="joinForm.inviteCode"
@@ -72,12 +62,15 @@
                 class="room-list-item"
                 @click="openMyRoomDetail(room)"
               >
-                <a-avatar :src="room.roomAvatar" style="background-color: #1890ff">
+                <a-avatar :src="room.roomAvatar" style="background-color: var(--color-primary, #15803d)">
                   {{ room.roomName?.charAt(0) }}
                 </a-avatar>
                 <div class="room-list-item-content">
                   <div class="room-list-item-title">{{ room.roomName }}</div>
-                  <div class="room-list-item-desc">{{ room.description || '暂无描述' }} · {{ room.memberCount }}人</div>
+                  <div class="room-list-item-desc">
+                    <span>{{ room.description || '暂无描述' }} · {{ room.memberCount }}人</span>
+                    <span class="room-time">{{ formatTime(room.createTime) || room.createTime || '' }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -110,7 +103,10 @@
                 </a-avatar>
                 <div class="room-list-item-content">
                   <div class="room-list-item-title">{{ room.roomName }}</div>
-                  <div class="room-list-item-desc">{{ room.description || '暂无描述' }} · {{ room.memberCount }}人</div>
+                  <div class="room-list-item-desc">
+                    <span>{{ room.description || '暂无描述' }} · {{ room.memberCount }}人</span>
+                    <span class="room-time">{{ formatTime(room.createTime) || room.createTime || '' }}</span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -137,7 +133,7 @@
     >
       <div v-if="selectedRoom" class="room-detail">
         <div class="room-detail-info">
-          <a-avatar :src="selectedRoom.roomAvatar" :size="48" style="background-color: #1890ff">
+          <a-avatar :src="selectedRoom.roomAvatar" :size="48" style="background-color: var(--color-primary, #15803d)">
             {{ selectedRoom.roomName?.charAt(0) }}
           </a-avatar>
           <div class="room-detail-text">
@@ -148,18 +144,10 @@
         </div>
 
         <div class="room-detail-actions">
-          <a-button type="primary" @click="enterRoomNewTab(selectedRoom)">
-            进入群聊
-          </a-button>
-          <a-button @click="handleInvite(selectedRoom)">
-            邀请
-          </a-button>
-          <a-button @click="openEditModal">
-            修改
-          </a-button>
-          <a-button danger @click="handleDissolve(selectedRoom)">
-            解散
-          </a-button>
+          <a-button type="primary" @click="enterRoomNewTab(selectedRoom)"> 进入群聊 </a-button>
+          <a-button @click="handleInvite(selectedRoom)"> 邀请 </a-button>
+          <a-button @click="openEditModal"> 修改 </a-button>
+          <a-button danger @click="handleDissolve(selectedRoom)"> 解散 </a-button>
         </div>
       </div>
     </a-modal>
@@ -173,7 +161,11 @@
     >
       <div v-if="selectedJoinedRoom" class="room-detail">
         <div class="room-detail-info">
-          <a-avatar :src="selectedJoinedRoom.roomAvatar" :size="48" style="background-color: #52c41a">
+          <a-avatar
+            :src="selectedJoinedRoom.roomAvatar"
+            :size="48"
+            style="background-color: #52c41a"
+          >
             {{ selectedJoinedRoom.roomName?.charAt(0) }}
           </a-avatar>
           <div class="room-detail-text">
@@ -187,9 +179,7 @@
           <a-button type="primary" @click="enterRoomNewTab(selectedJoinedRoom)">
             进入群聊
           </a-button>
-          <a-button danger @click="handleLeaveRoom(selectedJoinedRoom)">
-            退出群聊
-          </a-button>
+          <a-button danger @click="handleLeaveRoom(selectedJoinedRoom)"> 退出群聊 </a-button>
         </div>
       </div>
     </a-modal>
@@ -223,9 +213,7 @@
         <div class="invite-link" style="margin-top: 12px">
           <a-input-group compact>
             <a-input :value="inviteLink" readonly style="width: calc(100% - 100px)" />
-            <a-button type="primary" @click="copyInviteLink">
-              复制
-            </a-button>
+            <a-button type="primary" @click="copyInviteLink"> 复制 </a-button>
           </a-input-group>
           <p class="link-tip">链接有效期为5分钟</p>
         </div>
@@ -233,11 +221,7 @@
     </a-modal>
 
     <!-- 创建成功弹窗 -->
-    <a-modal
-      v-model:open="createSuccessModalVisible"
-      title="创建成功"
-      :footer="null"
-    >
+    <a-modal v-model:open="createSuccessModalVisible" title="创建成功" :footer="null">
       <div v-if="createdRoom" class="invite-confirm-content">
         <a-alert type="success" show-icon :message="`群聊「${createdRoom.roomName}」创建成功！`" />
         <div class="invite-link-section" style="margin-top: 16px">
@@ -283,15 +267,15 @@
 
 <script setup lang="ts">
 import {
-  createChatRoom,
-  dissolveRoom,
-  generateInviteCode as generateInviteCodeApi,
-  getInviteInfo,
-  joinRoomByInviteCode,
-  leaveRoom,
-  listMyCreatedRooms,
-  listMyJoinedRooms,
-  updateChatRoom,
+    createChatRoom,
+    dissolveRoom,
+    generateInviteCode as generateInviteCodeApi,
+    getInviteInfo,
+    joinRoomByInviteCode,
+    leaveRoom,
+    listMyCreatedRooms,
+    listMyJoinedRooms,
+    updateChatRoom,
 } from '@/api/chatRoomController'
 import { LinkOutlined } from '@ant-design/icons-vue'
 import type { FormInstance } from 'ant-design-vue'
@@ -368,7 +352,7 @@ const fetchMyCreatedRooms = async () => {
   createdLoading.value = true
   try {
     const res = await listMyCreatedRooms({
-      chatRoomQueryRequest: { pageNum: createdPageNum.value, pageSize: 5 }
+      chatRoomQueryRequest: { pageNum: createdPageNum.value, pageSize: 5 },
     } as any)
     if (res.data?.code === 0 && res.data.data) {
       myCreatedList.value = res.data.data.records || []
@@ -385,7 +369,7 @@ const fetchJoinedRooms = async () => {
   joinedLoading.value = true
   try {
     const res = await listMyJoinedRooms({
-      chatRoomQueryRequest: { pageNum: joinedPageNum.value, pageSize: 5 }
+      chatRoomQueryRequest: { pageNum: joinedPageNum.value, pageSize: 5 },
     } as any)
     if (res.data?.code === 0 && res.data.data) {
       joinedList.value = res.data.data.records || []
@@ -414,6 +398,36 @@ const extractInviteCode = (value: string) => {
     if (parts.length > 1) {
       joinForm.inviteCode = parts[1].split('?')[0].split('#')[0]
     }
+  }
+}
+
+const formatTime = (time?: any): string => {
+  if (time === null || time === undefined) return ''
+  try {
+    let d: Date
+    if (typeof time === 'number') {
+      d = new Date(time > 9999999999 ? time : time * 1000)
+    } else if (Array.isArray(time)) {
+      d = new Date(
+        time[0],
+        (time[1] || 1) - 1,
+        time[2] || 1,
+        time[3] || 0,
+        time[4] || 0,
+        time[5] || 0,
+      )
+    } else {
+      d = new Date(String(time))
+    }
+    if (isNaN(d.getTime())) return ''
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const day = String(d.getDate()).padStart(2, '0')
+    const hour = String(d.getHours()).padStart(2, '0')
+    const min = String(d.getMinutes()).padStart(2, '0')
+    const sec = String(d.getSeconds()).padStart(2, '0')
+    return `${month}-${day} ${hour}:${min}:${sec}`
+  } catch {
+    return ''
   }
 }
 
@@ -641,7 +655,6 @@ onMounted(() => {
 <style scoped>
 .chat-create-or-join-page {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 40px 20px;
   display: flex;
   justify-content: center;
@@ -700,9 +713,14 @@ onMounted(() => {
   font-size: 12px;
   color: #999;
   margin-top: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.room-list-item-desc .room-time {
+  color: #bbb;
+  font-size: 11px;
 }
 
 .pagination-wrapper {
@@ -757,7 +775,7 @@ onMounted(() => {
 
 .invite-link-section h4 {
   margin-bottom: 10px;
-  color: #1890ff;
+  color: var(--color-primary, #15803d);
 }
 
 .link-tip {

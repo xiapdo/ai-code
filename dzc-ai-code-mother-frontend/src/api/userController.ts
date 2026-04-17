@@ -148,3 +148,19 @@ export async function uploadAvatar(file: File, options?: { [key: string]: any })
     ...(options || {}),
   })
 }
+
+/** 用户签到 POST /user/checkin */
+export async function userCheckin(options?: { [key: string]: any }) {
+  return request<API.BaseResponseCheckinStatusVO>('/user/checkin', {
+    method: 'POST',
+    ...(options || {}),
+  })
+}
+
+/** 获取用户签到状态 GET /user/checkin/status */
+export async function getCheckinStatus(options?: { [key: string]: any }) {
+  return request<API.BaseResponseCheckinStatusVO>('/user/checkin/status', {
+    method: 'GET',
+    ...(options || {}),
+  })
+}

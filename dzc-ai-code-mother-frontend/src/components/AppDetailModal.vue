@@ -13,7 +13,7 @@
         </div>
         <div class="info-item">
           <span class="info-label">生成类型：</span>
-          <a-tag v-if="app?.codeGenType" color="blue">
+          <a-tag v-if="app?.codeGenType" color="green">
             {{ formatCodeGenType(app.codeGenType) }}
           </a-tag>
           <span v-else>未知类型</span>
@@ -49,11 +49,11 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import { EditOutlined, DeleteOutlined } from '@ant-design/icons-vue'
-import UserInfo from './UserInfo.vue'
-import { formatTime } from '@/utils/time'
-import {formatCodeGenType} from "../utils/codeGenTypes.ts";
+import { formatTime } from '@/utils/time';
+import { DeleteOutlined, EditOutlined } from '@ant-design/icons-vue';
+import { computed } from 'vue';
+import { formatCodeGenType } from "../utils/codeGenTypes.ts";
+import UserInfo from './UserInfo.vue';
 
 interface Props {
   open: boolean

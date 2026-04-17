@@ -4,7 +4,7 @@
       <a-card class="invite-card">
         <div class="invite-header">
           <div class="invite-icon">
-            <TeamOutlined style="font-size: 48px; color: #1890ff" />
+            <TeamOutlined style="font-size: 48px; color: var(--color-primary, #15803d)" />
           </div>
           <h1>群聊邀请</h1>
           <p class="invite-desc">您收到了一个群聊邀请</p>
@@ -157,7 +157,6 @@ onMounted(() => {
 <style scoped>
 #chatInvitePage {
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   display: flex;
   align-items: center;
   justify-content: center;

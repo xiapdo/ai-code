@@ -3,9 +3,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
-import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
+import MarkdownIt from 'markdown-it'
+import { computed } from 'vue'
 
 // 引入代码高亮样式
 import 'highlight.js/styles/github.css'
@@ -149,7 +149,7 @@ const renderedMarkdown = computed(() => {
 }
 
 .markdown-content :deep(a) {
-  color: #1890ff;
+  color: var(--color-primary, #15803d);
   text-decoration: none;
 }
 

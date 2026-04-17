@@ -43,7 +43,7 @@
           </a-tooltip>
         </template>
         <template v-else-if="column.dataIndex === 'messageType'">
-          <a-tag :color="record.messageType === 'user' ? 'blue' : 'green'">
+          <a-tag :color="record.messageType === 'user' ? 'green' : 'green'">
             {{ record.messageType === 'user' ? '用户消息' : 'AI消息' }}
           </a-tag>
         </template>
@@ -66,11 +66,11 @@
 </template>
 
 <script lang="ts" setup>
-import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
 import { listAllChatHistoryByPageForAdmin } from '@/api/chatHistoryController'
 import { formatTime } from '@/utils/time'
+import { message } from 'ant-design-vue'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 
 const router = useRouter()
 
@@ -199,8 +199,13 @@ const deleteMessage = async (id: number | undefined) => {
 <style scoped>
 #chatManagePage {
   padding: 24px;
-  background: white;
+  background: rgba(255, 255, 255, 0.72);
   margin-top: 16px;
+  border-radius: 12px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 16px rgba(21, 128, 61, 0.08);
 }
 
 .message-text {

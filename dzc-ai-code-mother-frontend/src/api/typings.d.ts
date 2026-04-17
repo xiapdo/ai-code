@@ -68,10 +68,99 @@ declare namespace API {
     deployKey?: string
     deployedTime?: string
     priority?: number
+    versionNo?: number
     userId?: number
     createTime?: string
     updateTime?: string
     user?: UserVO
+    likeCount?: number
+    collectCount?: number
+    commentCount?: number
+    isLiked?: boolean
+    isCollected?: boolean
+  }
+
+  type CheckinRecordVO = {
+    date?: string
+    checked?: boolean
+    dayOfWeek?: string
+  }
+
+  type CoinRewardVO = {
+    earnedCoins?: number
+    totalCoins?: number
+    needExchange?: boolean
+    exchangedQuota?: number
+    remainingCoins?: number
+  }
+
+  type CheckinStatusVO = {
+    checkedToday?: boolean
+    continuousDays?: number
+    totalDays?: number
+    recentRecords?: CheckinRecordVO[]
+    coinReward?: CoinRewardVO
+  }
+
+  type CommentAddRequest = {
+    appId?: number
+    content?: string
+    replyToId?: number
+    parentId?: number
+  }
+
+  type CommentQueryRequest = {
+    appId?: number
+    parentId?: number
+    pageNum?: number
+    pageSize?: number
+  }
+
+  type CommentVO = {
+    id?: number
+    appId?: number
+    userId?: number
+    content?: string
+    replyToId?: number
+    parentId?: number
+    likeCount?: number
+    createTime?: string
+    user?: UserVO
+  }
+
+  type InteractionStatusVO = {
+    appId?: number
+    likeCount?: number
+    collectCount?: number
+    commentCount?: number
+    isLiked?: boolean
+    isCollected?: boolean
+  }
+
+  type NotificationQueryRequest = {
+    pageNum?: number
+    pageSize?: number
+    unreadOnly?: boolean
+  }
+
+  type UserNotificationVO = {
+    id?: number
+    userId?: number
+    type?: string
+    appId?: number
+    appName?: string
+    actorUserId?: number
+    actorUserName?: string
+    actorUserAvatar?: string
+    content?: string
+    isRead?: boolean
+    createTime?: string
+  }
+
+  type BaseResponse<T> = {
+    code?: number
+    data?: T
+    message?: string
   }
 
   type BaseResponseAppVersionSnapshot = {
@@ -152,6 +241,24 @@ declare namespace API {
     message?: string
   }
 
+  type BaseResponsePageChatRoomVO = {
+    code?: number
+    data?: PageChatRoomVO
+    message?: string
+  }
+
+  type BaseResponseChatRoomVO = {
+    code?: number
+    data?: ChatRoomVO
+    message?: string
+  }
+
+  type BaseResponseCheckinStatusVO = {
+    code?: number
+    data?: CheckinStatusVO
+    message?: string
+  }
+
   type BaseResponsePageUserVO = {
     code?: number
     data?: PageUserVO
@@ -227,6 +334,21 @@ declare namespace API {
     updateTime?: string
   }
 
+  type ChatRoomVO = {
+    id?: number
+    roomName?: string
+    roomAvatar?: string
+    description?: string
+    inviteCode?: string
+    inviteExpiryTime?: string
+    ownerUserId?: number
+    memberCount?: number
+    status?: number
+    createTime?: string
+    updateTime?: string
+    owner?: UserVO
+  }
+
   type ChatRoomCreateRequest = {
     roomName?: string
     description?: string
@@ -243,7 +365,24 @@ declare namespace API {
     lastActiveTime?: string
     isMuted?: number
     onlineStatus?: number
+    userName?: string
+    userAvatar?: string
+    userProfile?: string
     isDelete?: number
+  }
+
+  type ChatRoomMemberVO = {
+    id?: number
+    roomId?: number
+    userId?: number
+    memberRole?: string
+    joinTime?: string
+    lastActiveTime?: string
+    isMuted?: number
+    onlineStatus?: number
+    userName?: string
+    userAvatar?: string
+    userProfile?: string
   }
 
   type ChatRoomMessage = {
@@ -258,6 +397,8 @@ declare namespace API {
     revokedTime?: string
     createTime?: string
     updateTime?: string
+    userName?: string
+    userAvatar?: string
     isDelete?: number
   }
 
@@ -326,6 +467,10 @@ declare namespace API {
   }
 
   type getChatRoomByIdParams = {
+    id: number
+  }
+
+  type getChatRoomVOByAdminParams = {
     id: number
   }
 
@@ -420,6 +565,8 @@ declare namespace API {
     email?: string
     createTime?: string
     updateTime?: string
+    coins?: number
+    chatRoomQuota?: number
   }
 
   type LogoTask = {
@@ -455,6 +602,15 @@ declare namespace API {
 
   type PageChatRoom = {
     records?: ChatRoom[]
+    pageNumber?: number
+    pageSize?: number
+    totalPage?: number
+    totalRow?: number
+    optimizeCountQuery?: boolean
+  }
+
+  type PageChatRoomVO = {
+    records?: ChatRoomVO[]
     pageNumber?: number
     pageSize?: number
     totalPage?: number

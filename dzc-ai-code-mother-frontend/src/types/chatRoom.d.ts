@@ -26,6 +26,7 @@ declare namespace API {
     onlineStatus?: number
     userName?: string
     userAvatar?: string
+    userProfile?: string
   }
 
   // 群聊消息
@@ -118,14 +119,18 @@ declare namespace API {
 
   // WebSocket 消息响应
   interface ChatMessageVO {
-    messageId?: number
+    id?: number
     roomId?: number
-    senderId?: number
-    senderName?: string
-    senderAvatar?: string
-    content?: string
+    userId?: number
+    userName?: string
+    userAvatar?: string
+    messageContent?: string
     messageType?: string
-    timestamp?: number
-    isRevoked?: boolean
+    fileUrl?: string
+    replyToId?: number
+    isRevoked?: number
+    revokedTime?: string
+    createTime?: string
+    aiMessageId?: number
   }
 }

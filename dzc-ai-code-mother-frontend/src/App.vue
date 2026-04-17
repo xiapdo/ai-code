@@ -44,7 +44,6 @@ onBeforeUnmount(() => {
 </template>
 
 <style>
-/* 全局样式优化 + 水波变量 */
 :root {
   --ripple-x: 50%;
   --ripple-y: 50%;
@@ -60,6 +59,29 @@ onBeforeUnmount(() => {
   --rain-5-y: 40%;
   --rain-6-x: 15%;
   --rain-6-y: 60%;
+
+  --color-primary: #15803d;
+  --color-primary-light: #22c55e;
+  --color-primary-lighter: #86efac;
+  --color-primary-dark: #166534;
+  --color-secondary: #059669;
+  --color-accent: #d97706;
+  --color-accent-light: #fbbf24;
+  --color-background: #f0fdf4;
+  --color-foreground: #0f172a;
+  --color-muted: #f0f7f3;
+  --color-border: #bbf7d0;
+  --color-surface: rgba(255, 255, 255, 0.72);
+  --color-surface-hover: rgba(255, 255, 255, 0.88);
+  --glass-blur: 16px;
+  --glass-border: 1px solid rgba(255, 255, 255, 0.35);
+  --glass-shadow: 0 8px 32px rgba(21, 128, 61, 0.12);
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --transition-fast: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 * {
@@ -75,19 +97,23 @@ body {
   margin: 0;
   padding: 0;
   font-family:
-    -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell',
-    'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+    'Raleway',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    'Roboto',
+    'Oxygen',
+    'Ubuntu',
+    'Cantarell',
+    'Fira Sans',
+    'Droid Sans',
+    'Helvetica Neue',
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   overflow-x: hidden;
   position: relative;
-  background:
-    radial-gradient(circle at 15% 30%, rgba(74, 222, 128, 0.35), transparent 55%),
-    radial-gradient(circle at 85% 20%, rgba(59, 130, 246, 0.3), transparent 55%),
-    radial-gradient(circle at 60% 80%, rgba(249, 168, 212, 0.35), transparent 60%), #f0fdf4;
-  background-size: 140% 140%;
-  animation: breezeGlow 18s ease-in-out infinite;
-  will-change: transform;
+  background: #f8faf9;
 }
 
 body::before,
@@ -99,149 +125,193 @@ body::after {
   z-index: -1;
 }
 
-/* 柔光背景 */
 body::before {
   background:
-    radial-gradient(circle at 20% 70%, rgba(34, 197, 94, 0.2) 0, transparent 45%),
-    radial-gradient(circle at 80% 40%, rgba(99, 102, 241, 0.25) 0, transparent 50%);
-  filter: blur(40px);
-  animation: floatBloom 24s linear infinite;
+    radial-gradient(ellipse 500px 400px at 10% 20%, rgba(34, 197, 94, 0.12) 0%, transparent 70%),
+    radial-gradient(ellipse 400px 350px at 90% 80%, rgba(5, 150, 105, 0.1) 0%, transparent 70%);
+  animation: softFloat 18s ease-in-out infinite;
 }
 
-/* 雨滴水波 + 鼠标水波 */
 body::after {
   background:
-    radial-gradient(
-      circle at var(--rain-1-x) var(--rain-1-y),
-      rgba(59, 130, 246, 0.28) 0%,
-      rgba(59, 130, 246, 0.12) 26%,
-      transparent 40%
-    ),
-    radial-gradient(
-      circle at var(--rain-2-x) var(--rain-2-y),
-      rgba(16, 185, 129, 0.26) 0%,
-      rgba(16, 185, 129, 0.1) 24%,
-      transparent 38%
-    ),
-    radial-gradient(
-      circle at var(--rain-3-x) var(--rain-3-y),
-      rgba(56, 189, 248, 0.26) 0%,
-      rgba(56, 189, 248, 0.12) 24%,
-      transparent 38%
-    ),
-    radial-gradient(
-      circle at var(--rain-4-x) var(--rain-4-y),
-      rgba(59, 130, 246, 0.24) 0%,
-      rgba(59, 130, 246, 0.1) 22%,
-      transparent 36%
-    ),
-    radial-gradient(
-      circle at var(--rain-5-x) var(--rain-5-y),
-      rgba(34, 197, 94, 0.24) 0%,
-      rgba(34, 197, 94, 0.1) 22%,
-      transparent 36%
-    ),
-    radial-gradient(
-      circle at var(--rain-6-x) var(--rain-6-y),
-      rgba(56, 189, 248, 0.22) 0%,
-      rgba(56, 189, 248, 0.1) 20%,
-      transparent 34%
-    ),
-    radial-gradient(
-      circle at var(--ripple-x) var(--ripple-y),
-      rgba(56, 189, 248, 0.35) 0%,
-      rgba(56, 189, 248, 0.18) 30%,
-      transparent 44%
-    ),
-    linear-gradient(120deg, rgba(255, 255, 255, 0.35), rgba(255, 255, 255, 0));
-  background-size:
-    230% 230%,
-    230% 230%,
-    230% 230%,
-    230% 230%,
-    230% 230%,
-    230% 230%,
-    230% 230%,
-    100% 100%;
-  mix-blend-mode: soft-light;
-  opacity: 0.95;
-  animation: rippleExpand 34s linear infinite;
-  animation-delay: 2s;
-  will-change: background-size;
+    radial-gradient(ellipse 350px 300px at 85% 15%, rgba(217, 119, 6, 0.08) 0%, transparent 70%),
+    radial-gradient(ellipse 300px 250px at 15% 85%, rgba(34, 197, 94, 0.1) 0%, transparent 70%);
+  animation: softFloat 22s ease-in-out infinite reverse;
 }
 
-/* 背景整体缓慢流动 */
-@keyframes breezeGlow {
-  0% {
-    background-position:
-      0% 30%,
-      100% 20%,
-      50% 90%,
-      50% 50%;
+@keyframes softFloat {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.8;
+  }
+  25% {
+    transform: translate(15px, -20px) scale(1.02);
+    opacity: 1;
   }
   50% {
-    background-position:
-      20% 40%,
-      90% 10%,
-      60% 80%,
-      50% 50%;
+    transform: translate(-10px, 10px) scale(0.98);
+    opacity: 0.9;
   }
-  100% {
-    background-position:
-      0% 30%,
-      100% 20%,
-      50% 90%,
-      50% 50%;
+  75% {
+    transform: translate(20px, 15px) scale(1.01);
+    opacity: 0.85;
   }
 }
 
-/* 柔光区域缓慢位移 */
-@keyframes floatBloom {
-  0% {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  50% {
-    transform: translate3d(-30px, -20px, 0) scale(1.05);
-  }
-  100% {
-    transform: translate3d(0, 0, 0) scale(1);
+@media (prefers-reduced-motion: reduce) {
+  body::before,
+  body::after {
+    animation: none;
   }
 }
 
-/* 所有水波统一做缩放动画 */
-@keyframes rippleExpand {
-  0% {
-    background-size:
-      90% 90%,
-      90% 90%,
-      90% 90%,
-      90% 90%,
-      90% 90%,
-      90% 90%,
-      90% 90%,
-      100% 100%;
-  }
-  50% {
-    background-size:
-      200% 200%,
-      200% 200%,
-      200% 200%,
-      200% 200%,
-      200% 200%,
-      200% 200%,
-      200% 200%,
-      110% 110%;
-  }
-  100% {
-    background-size:
-      90% 90%,
-      90% 90%,
-      90% 90%,
-      90% 90%,
-      90% 90%,
-      90% 90%,
-      90% 90%,
-      100% 100%;
-  }
+.ant-btn-primary {
+  background: linear-gradient(135deg, var(--color-primary), var(--color-secondary)) !important;
+  border: none !important;
+  border-radius: var(--radius-sm) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  box-shadow:
+    0 4px 16px rgba(21, 128, 61, 0.25),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2) !important;
+  transition: all var(--transition-normal) !important;
+  color: #ffffff !important;
+}
+
+.ant-btn-primary:hover {
+  background: linear-gradient(135deg, var(--color-primary-light), var(--color-primary)) !important;
+  transform: translateY(-2px) !important;
+  box-shadow:
+    0 8px 24px rgba(21, 128, 61, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3) !important;
+}
+
+.ant-btn-primary:active {
+  transform: translateY(0) !important;
+}
+
+.ant-btn-default {
+  background: var(--color-surface) !important;
+  border: var(--glass-border) !important;
+  border-radius: var(--radius-sm) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  box-shadow: var(--glass-shadow) !important;
+  color: var(--color-primary) !important;
+  transition: all var(--transition-normal) !important;
+}
+
+.ant-btn-default:hover {
+  background: var(--color-surface-hover) !important;
+  border-color: var(--color-primary-lighter) !important;
+  color: var(--color-primary-dark) !important;
+  transform: translateY(-2px) !important;
+  box-shadow:
+    0 8px 24px rgba(21, 128, 61, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.4) !important;
+}
+
+.ant-card {
+  background: var(--color-surface) !important;
+  border: var(--glass-border) !important;
+  border-radius: var(--radius-lg) !important;
+  backdrop-filter: blur(var(--glass-blur)) !important;
+  box-shadow: var(--glass-shadow) !important;
+}
+
+.ant-modal-content {
+  background: var(--color-surface-hover) !important;
+  border: var(--glass-border) !important;
+  border-radius: var(--radius-lg) !important;
+  backdrop-filter: blur(20px) !important;
+  box-shadow: 0 16px 48px rgba(21, 128, 61, 0.15) !important;
+}
+
+.ant-input,
+.ant-input-password,
+.ant-input-affix-wrapper,
+.ant-select-selector,
+.ant-picker {
+  border-radius: var(--radius-sm) !important;
+  border-color: var(--color-border) !important;
+  transition: all var(--transition-fast) !important;
+  background: rgba(255, 255, 255, 0.6) !important;
+}
+
+.ant-input:focus,
+.ant-input-focused,
+.ant-input-affix-wrapper:focus,
+.ant-input-affix-wrapper-focused,
+.ant-select-focused .ant-select-selector {
+  border-color: var(--color-primary-light) !important;
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.15) !important;
+  background: rgba(255, 255, 255, 0.85) !important;
+}
+
+.ant-modal .ant-modal-content {
+  background: var(--color-surface-hover) !important;
+}
+
+.ant-modal .ant-modal-header {
+  background: transparent !important;
+}
+
+.ant-modal .ant-modal-body {
+  background: transparent !important;
+}
+
+.ant-modal .ant-modal-footer {
+  background: transparent !important;
+  border-top-color: rgba(34, 197, 94, 0.15) !important;
+}
+
+.ant-tag {
+  background: rgba(34, 197, 94, 0.1) !important;
+  border-color: rgba(34, 197, 94, 0.25) !important;
+  color: var(--color-primary) !important;
+}
+
+/* 全局替换 Ant Design 默认蓝色为森林绿 */
+.ant-menu-item-selected,
+.ant-menu-item-active,
+.ant-menu-submenu-selected .ant-menu-submenu-title {
+  color: var(--color-primary, #15803d) !important;
+}
+
+.ant-menu-horizontal > .ant-menu-item-selected::after,
+.ant-menu-horizontal > .ant-menu-item-active::after,
+.ant-menu-horizontal > .ant-menu-submenu-selected::after {
+  border-bottom-color: var(--color-primary, #15803d) !important;
+}
+
+.ant-btn-link {
+  color: var(--color-secondary, #059669) !important;
+}
+
+.ant-btn-link:hover {
+  color: var(--color-primary, #15803d) !important;
+}
+
+.ant-link,
+a {
+  color: var(--color-secondary, #059669);
+}
+
+.ant-link:hover,
+a:hover {
+  color: var(--color-primary, #15803d);
+}
+
+.ant-pagination .ant-pagination-item-active {
+  border-color: var(--color-primary) !important;
+}
+
+.ant-pagination .ant-pagination-item-active a {
+  color: var(--color-primary) !important;
+}
+
+.ant-tag-green {
+  background: rgba(34, 197, 94, 0.12) !important;
+  border-color: rgba(34, 197, 94, 0.3) !important;
+  color: var(--color-primary) !important;
 }
 </style>

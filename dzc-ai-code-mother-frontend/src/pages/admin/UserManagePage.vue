@@ -29,7 +29,7 @@
             <a-tag color="green">管理员</a-tag>
           </div>
           <div v-else>
-            <a-tag color="blue">普通用户</a-tag>
+            <a-tag color="green">普通用户</a-tag>
           </div>
         </template>
         <template v-else-if="column.dataIndex === 'createTime'">
@@ -43,10 +43,10 @@
   </div>
 </template>
 <script lang="ts" setup>
-import { computed, onMounted, reactive, ref } from 'vue'
 import { deleteUser, listUserVoByPage } from '@/api/userController.ts'
 import { message } from 'ant-design-vue'
 import dayjs from 'dayjs'
+import { computed, onMounted, reactive, ref } from 'vue'
 
 const columns = [
   {
@@ -155,7 +155,12 @@ onMounted(() => {
 <style scoped>
 #userManagePage {
   padding: 24px;
-  background: white;
+  background: rgba(255, 255, 255, 0.72);
   margin-top: 16px;
+  border-radius: 12px;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: 0 4px 16px rgba(21, 128, 61, 0.08);
 }
 </style>
