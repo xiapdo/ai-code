@@ -148,4 +148,17 @@ public class App implements Serializable {
     @Column("collectUserIds")
     private String collectUserIds;
 
+    /**
+     * 浏览量
+     */
+    @Column("viewCount")
+    private Integer viewCount;
+
+    /**
+     * 浏览统计数据（JSON格式，存储每日浏览量）
+     * 格式：{"2024-01-01": 100, "2024-01-02": 150, ...}
+     */
+    @Column("viewStatData")
+    private String viewStatData;
+
 }

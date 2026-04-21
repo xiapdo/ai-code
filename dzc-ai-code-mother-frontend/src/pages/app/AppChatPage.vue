@@ -9,48 +9,35 @@
         </a-tag>
       </div>
       <div class="header-right">
-        <a-button
-          v-if="isOwner && !isReadonly"
-          type="default"
-          @click="shareModalVisible = true"
-          :disabled="messages.length < 2"
-        >
+        <a-button type="default" @click="shareModalVisible = true">
           <template #icon>
             <ShareAltOutlined />
           </template>
           分享
         </a-button>
         <a-button
-          v-if="!isReadonly"
+          v-if="isOwner"
           type="default"
           @click="showVersionHistory"
-          :disabled="!isOwner"
         >
           <template #icon>
             <HistoryOutlined />
           </template>
           历史版本
         </a-button>
-        <a-button v-if="!isReadonly" type="default" @click="showAppDetail">
+        <a-button type="default" @click="showAppDetail">
           <template #icon>
             <InfoCircleOutlined />
           </template>
           应用详情
         </a-button>
-        <a-button
-          v-if="!isReadonly"
-          type="primary"
-          ghost
-          @click="downloadCode"
-          :loading="downloading"
-          :disabled="!isOwner"
-        >
+        <a-button type="default" @click="downloadCode" :loading="downloading">
           <template #icon>
             <DownloadOutlined />
           </template>
           下载代码
         </a-button>
-        <a-button v-if="!isReadonly" type="primary" @click="deployApp" :loading="deploying">
+        <a-button v-if="isOwner" type="primary" @click="deployApp" :loading="deploying">
           <template #icon>
             <CloudUploadOutlined />
           </template>
@@ -83,7 +70,16 @@
                 <a-avatar :src="chatAvatar" />
               </div>
               <div class="message-content">
-                <MarkdownRenderer v-if="message.content" :content="message.content" />
+                <MarkdownRenderer
+                  v-if="message.content"
+                  :content="message.content"
+                  :is-generating="isGenerating && isLastAiMessage(index)"
+                  :streaming-language="
+                    isGenerating && isLastAiMessage(index) ? streamingLanguage : null
+                  "
+                  :latest-tool-file-name="isLastAiMessage(index) ? latestToolFileName : ''"
+                  @view-code="handleViewCode"
+                />
                 <div v-if="message.loading" class="loading-indicator">
                   <a-spin size="small" />
                   <span>AI 正在思考...</span>
@@ -132,28 +128,23 @@
         </a-alert>
 
         <!-- 用户消息输入框 -->
-        <div v-if="!isReadonly" class="input-container">
+        <div class="input-container">
           <div class="input-wrapper">
-            <a-tooltip v-if="!isOwner" title="无法在别人的作品下对话哦~" placement="top">
-              <a-textarea
-                v-model:value="userInput"
-                :placeholder="getInputPlaceholder()"
-                :rows="4"
-                :maxlength="1000"
-                @keydown.enter.prevent="sendMessage"
-                :disabled="isGenerating || !isOwner"
-              />
-            </a-tooltip>
             <a-textarea
-              v-else
               v-model:value="userInput"
               :placeholder="getInputPlaceholder()"
               :rows="4"
               :maxlength="1000"
               @keydown.enter.prevent="sendMessage"
-              :disabled="isGenerating"
+              :disabled="isGenerating || !isOwner"
             />
             <div class="input-actions">
+              <a-select
+                v-model:value="selectedCodeGenMode"
+                :options="CODE_GEN_MODE_OPTIONS"
+                class="mode-select"
+                :disabled="isGenerating || !isOwner"
+              />
               <a-button
                 type="primary"
                 @click="sendMessage"
@@ -171,7 +162,31 @@
       <!-- 右侧网页展示区域 -->
       <div class="preview-section">
         <div class="preview-header">
-          <h3>生成后的网页展示</h3>
+          <div class="preview-header-left">
+            <div class="preview-tabs">
+              <button
+                class="preview-tab"
+                :class="{ active: previewMode === 'preview' }"
+                @click="previewMode = 'preview'"
+              >
+                <EyeOutlined class="tab-icon" />
+                <span>预览</span>
+              </button>
+              <button
+                v-if="isOwner"
+                class="preview-tab"
+                :class="{ active: previewMode === 'code' }"
+                @click="previewMode = 'code'"
+              >
+                <CodeOutlined class="tab-icon" />
+                <span>代码</span>
+              </button>
+              <button v-if="isOwner" class="preview-tab view-stat-tab" @click="goToViewStat">
+                <BarChartOutlined class="tab-icon" />
+                <span>浏览统计</span>
+              </button>
+            </div>
+          </div>
           <div v-if="showInteraction" class="interaction-buttons">
             <a-button type="text" @click="handleToggleLike" :class="{ liked: isLiked }">
               <template #icon>
@@ -200,7 +215,7 @@
           </div>
           <div class="preview-actions">
             <a-button
-              v-if="isOwner && previewUrl"
+              v-if="isOwner && previewUrl && previewMode === 'preview'"
               type="link"
               :danger="isEditMode"
               @click="toggleEditMode"
@@ -212,7 +227,11 @@
               </template>
               {{ isEditMode ? '退出编辑' : '编辑模式' }}
             </a-button>
-            <a-button v-if="previewUrl" type="link" @click="openInNewTab">
+            <a-button
+              v-if="previewUrl && previewMode === 'preview'"
+              type="link"
+              @click="openInNewTab"
+            >
               <template #icon>
                 <ExportOutlined />
               </template>
@@ -227,21 +246,36 @@
           </div>
         </div>
         <div class="preview-content">
-          <div v-if="!previewUrl && !isGenerating" class="preview-placeholder">
-            <div class="placeholder-icon">🌐</div>
-            <p>网站文件生成完成后将在这里展示</p>
+          <div v-if="previewMode === 'preview'" class="preview-panel">
+            <div v-if="!previewUrl && !isGenerating" class="preview-placeholder">
+              <div class="placeholder-icon">🌐</div>
+              <p>网站文件生成完成后将在这里展示</p>
+            </div>
+            <div v-else-if="isGenerating" class="preview-loading">
+              <a-spin size="large" />
+              <p>正在生成网站...</p>
+            </div>
+            <iframe
+              v-else
+              ref="previewIframeRef"
+              :key="iframeKey"
+              :src="previewUrl"
+              class="preview-iframe"
+              frameborder="0"
+              @load="onIframeLoad"
+            ></iframe>
           </div>
-          <div v-else-if="isGenerating" class="preview-loading">
-            <a-spin size="large" />
-            <p>正在生成网站...</p>
+          <div v-else class="code-panel">
+            <CodeFileBrowser
+              :files="codeFiles"
+              :active-file-path="activeFilePath"
+              :is-generating="isGenerating"
+              :streaming-language="streamingLanguage"
+              :latest-tool-file-name="latestToolFileName"
+              @select="handleCodeFileSelect"
+              @save="handleCodeSave"
+            />
           </div>
-          <iframe
-            v-else
-            :src="previewUrl"
-            class="preview-iframe"
-            frameborder="0"
-            @load="onIframeLoad"
-          ></iframe>
         </div>
       </div>
     </div>
@@ -276,6 +310,8 @@
       :cover="appInfo?.cover"
       :code-gen-type="appInfo?.codeGenType"
       :version-no="appInfo?.versionNo"
+      :creator-user-avatar="appInfo?.user?.userAvatar"
+      :creator-user-name="appInfo?.user?.userName"
       @share-success="handleShareSuccess"
     />
 
@@ -291,9 +327,11 @@
 
 <script setup lang="ts">
 import {
-    deleteApp as deleteAppApi,
-    deployApp as deployAppApi,
-    getAppVoById,
+  deleteApp as deleteAppApi,
+  deployApp as deployAppApi,
+  getAppVoById,
+  recordAppView,
+  updateCodeFile,
 } from '@/api/appController'
 import { listAppChatHistory } from '@/api/chatHistoryController'
 import { getInteractionStatus, toggleCollect, toggleLike } from '@/api/interactionController'
@@ -308,25 +346,29 @@ import { default as chatAvatar } from '@/assets/12.jpg'
 import { default as defaultAvatar } from '@/assets/aiAvatar.png'
 import AppCommentDrawer from '@/components/AppCommentDrawer.vue'
 import AppDetailModal from '@/components/AppDetailModal.vue'
+import CodeFileBrowser from '@/components/CodeFileBrowser.vue'
 import DeploySuccessModal from '@/components/DeploySuccessModal.vue'
 import MarkdownRenderer from '@/components/MarkdownRenderer.vue'
 import ShareToChatRoomModal from '@/components/ShareToChatRoomModal.vue'
 import VersionHistoryDrawer from '@/components/VersionHistoryDrawer.vue'
 import { API_BASE_URL, getStaticPreviewUrl } from '@/config/env'
+import { extractCodeFiles, getStreamingLanguage } from '@/utils/codeParser'
 import { VisualEditor, type ElementInfo } from '@/utils/visualEditor'
 
 import {
-    CloudUploadOutlined,
-    DownloadOutlined,
-    EditOutlined,
-    ExportOutlined,
-    HistoryOutlined,
-    InfoCircleOutlined,
-    LikeOutlined,
-    MessageOutlined,
-    SendOutlined,
-    ShareAltOutlined,
-    StarOutlined,
+  CloudUploadOutlined,
+  CodeOutlined,
+  DownloadOutlined,
+  EditOutlined,
+  ExportOutlined,
+  EyeOutlined,
+  HistoryOutlined,
+  InfoCircleOutlined,
+  LikeOutlined,
+  MessageOutlined,
+  SendOutlined,
+  ShareAltOutlined,
+  StarOutlined,
 } from '@ant-design/icons-vue'
 
 const route = useRoute()
@@ -349,6 +391,14 @@ const messages = ref<Message[]>([])
 const userInput = ref('')
 const isGenerating = ref(false)
 const messagesContainer = ref<HTMLElement>()
+const selectedCodeGenMode = ref('auto')
+
+const CODE_GEN_MODE_OPTIONS = [
+  { value: 'auto', label: 'AI 智能' },
+  { value: 'html', label: 'HTML' },
+  { value: 'multi_file', label: '多文件' },
+  { value: 'vue_project', label: 'Vue 项目' },
+]
 
 // 对话历史相关
 const loadingHistory = ref(false)
@@ -359,6 +409,154 @@ const historyLoaded = ref(false)
 // 预览相关
 const previewUrl = ref('')
 const previewReady = ref(false)
+const previewMode = ref<'preview' | 'code'>('preview')
+const previewIframeRef = ref<HTMLIFrameElement | null>(null)
+const iframeKey = ref(0)
+const codeFiles = ref<any[]>([])
+const activeFilePath = ref('')
+const streamingLanguage = ref<string | null>(null)
+
+const handleCodeFileSelect = (file: any) => {
+  activeFilePath.value = file.path
+}
+
+const handleCodeSave = async (file: any, newContent: string) => {
+  const idx = codeFiles.value.findIndex((f) => f.path === file.path)
+  if (idx !== -1) {
+    codeFiles.value[idx] = { ...codeFiles.value[idx], content: newContent }
+  }
+  // 同步保存到后端服务器
+  if (appId.value) {
+    try {
+      const res = await updateCodeFile({
+        appId: appId.value as unknown as number,
+        filePath: file.path,
+        content: newContent,
+      })
+      if (res.data?.data) {
+        message.success('代码已保存')
+        // 刷新预览 iframe
+        if (previewMode.value === 'preview' && previewUrl.value) {
+          iframeKey.value++
+        }
+      } else {
+        message.error('保存失败')
+      }
+    } catch (error) {
+      console.error('保存文件失败：', error)
+      message.error('保存失败')
+    }
+  } else {
+    message.success('代码已保存')
+  }
+}
+
+const handleViewCode = (fileName: string) => {
+  previewMode.value = 'code'
+  if (fileName) {
+    const file = codeFiles.value.find((f) => f.name === fileName)
+    if (file) {
+      activeFilePath.value = file.path
+    }
+  }
+}
+
+const isLastAiMessage = (index: number): boolean => {
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    if (messages.value[i].type === 'ai') {
+      return i === index
+    }
+  }
+  return false
+}
+
+const latestToolFileName = ref<string>('')
+
+const parseToolFileCalls = (content: string): string[] => {
+  const results: string[] = []
+  const patterns = [
+    /\[工具调用[^\]]*\]\s*写入文件\s+([^\s\n`]+)/gi,
+    /\]\s*写入文件\s+([^\s\n`]+)/gi,
+    /写入文件[：:\s]+([^\s\n`]+)/gi,
+    /正在创建文件[:：\s]+([^\s\n`]+)/gi,
+  ]
+  for (const pattern of patterns) {
+    const matches = content.matchAll(pattern)
+    for (const match of matches) {
+      let fileName = match[1].trim()
+      fileName = fileName.replace(/[`'"*]/g, '')
+      if (fileName && !results.includes(fileName)) {
+        results.push(fileName)
+      }
+    }
+  }
+  return results
+}
+
+const updateCodeFiles = () => {
+  if (!appId.value) return
+
+  // 找到最后一条 AI 消息
+  let latestAiMessage: Message | null = null
+  for (let i = messages.value.length - 1; i >= 0; i--) {
+    if (messages.value[i].type === 'ai') {
+      latestAiMessage = messages.value[i]
+      break
+    }
+  }
+
+  if (!latestAiMessage?.content) {
+    codeFiles.value = []
+    streamingLanguage.value = null
+    latestToolFileName.value = ''
+    return
+  }
+
+  // 获取所有工具调用的文件列表（VUE模式）
+  const toolFileCalls = parseToolFileCalls(latestAiMessage.content)
+  if (toolFileCalls.length > 0) {
+    // 最新的工具调用文件
+    const latestFile = toolFileCalls[toolFileCalls.length - 1]
+    latestToolFileName.value = latestFile
+
+    // 将文件名映射为语言
+    const ext = latestFile.split('.').pop()?.toLowerCase()
+    const langMap: Record<string, string> = {
+      html: 'html',
+      css: 'css',
+      js: 'javascript',
+      ts: 'typescript',
+      vue: 'vue',
+      json: 'json',
+    }
+    streamingLanguage.value = langMap[ext || ''] || null
+  } else {
+    // 没有工具调用时，清空 latestToolFileName
+    latestToolFileName.value = ''
+    streamingLanguage.value = null
+  }
+
+  // HTML模式和多文件模式：使用 getStreamingLanguage 检测当前正在生成的语言
+  if (isGenerating.value && toolFileCalls.length === 0) {
+    const streamingLang = getStreamingLanguage(latestAiMessage.content)
+    streamingLanguage.value = streamingLang
+
+    // 根据流式语言推断文件名
+    if (streamingLang) {
+      const files = extractCodeFiles(latestAiMessage.content)
+      // 找到对应语言的最后一个文件
+      const langFiles = files.filter((f) => f.language === streamingLang)
+      if (langFiles.length > 0) {
+        latestToolFileName.value = langFiles[langFiles.length - 1].name
+      } else if (files.length > 0) {
+        // 如果没有匹配的文件，使用最后一个文件
+        latestToolFileName.value = files[files.length - 1].name
+      }
+    }
+  }
+
+  codeFiles.value = extractCodeFiles(latestAiMessage.content)
+}
 
 // 部署相关
 const deploying = ref(false)
@@ -617,6 +815,8 @@ const loadChatHistory = async (isLoadMore = false) => {
         hasMoreHistory.value = false
       }
       historyLoaded.value = true
+      // 加载历史后解析代码文件，确保文件持久化
+      updateCodeFiles()
     }
   } catch (error) {
     console.error('加载对话历史失败：', error)
@@ -647,6 +847,11 @@ const fetchAppInfo = async () => {
     if (res.data.code === 0 && res.data.data) {
       appInfo.value = res.data.data
 
+      // 记录浏览量（仅当应用已部署且是查看模式时）
+      if (appInfo.value.deployKey && isReadonly.value) {
+        recordViewIfNeeded(Number(id))
+      }
+
       // 先加载对话历史
       await loadChatHistory()
       // 如果有至少2条对话记录，展示对应的网站
@@ -674,6 +879,30 @@ const fetchAppInfo = async () => {
   }
 }
 
+/**
+ * 记录浏览量（防重复：同一用户同一天只记录一次）
+ * @param appId 应用ID
+ */
+const recordViewIfNeeded = async (appId: number) => {
+  const today = new Date().toISOString().split('T')[0]
+  const viewKey = `app_view_${appId}_${today}`
+
+  // 检查是否已记录
+  if (localStorage.getItem(viewKey)) {
+    return
+  }
+
+  try {
+    const res = await recordAppView(appId)
+    if (res.data.code === 0) {
+      // 标记已记录
+      localStorage.setItem(viewKey, '1')
+    }
+  } catch (error) {
+    console.error('记录浏览量失败：', error)
+  }
+}
+
 // 发送初始消息
 const sendInitialMessage = async (prompt: string) => {
   // 添加用户消息
@@ -695,6 +924,7 @@ const sendInitialMessage = async (prompt: string) => {
 
   // 开始生成
   isGenerating.value = true
+  previewMode.value = 'code'
   await generateCode(prompt, aiMessageIndex)
 }
 
@@ -705,6 +935,13 @@ const sendMessage = async () => {
   }
 
   let message = userInput.value.trim()
+  if (selectedCodeGenMode.value === 'html') {
+    message = `【强制使用 HTML 单文件模式生成代码】\n${message}`
+  } else if (selectedCodeGenMode.value === 'multi_file') {
+    message = `【强制使用多文件模式生成代码】\n${message}`
+  } else if (selectedCodeGenMode.value === 'vue_project') {
+    message = `【强制使用 Vue 项目模式生成代码】\n${message}`
+  }
   // 如果有选中的元素，将元素信息添加到提示词中
   if (selectedElementInfo.value) {
     let elementContext = `\n\n选中元素信息：`
@@ -745,6 +982,7 @@ const sendMessage = async () => {
 
   // 开始生成
   isGenerating.value = true
+  previewMode.value = 'code'
   await generateCode(message, aiMessageIndex)
 }
 
@@ -787,6 +1025,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
           messages.value[aiMessageIndex].content = fullContent
           messages.value[aiMessageIndex].loading = false
           scrollToBottom()
+          updateCodeFiles()
         }
       } catch (error) {
         console.error('解析消息失败:', error)
@@ -800,6 +1039,9 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
       streamCompleted = true
       isGenerating.value = false
+      previewMode.value = 'preview'
+      latestToolFileName.value = ''
+      streamingLanguage.value = null
       eventSource?.close()
 
       // 延迟更新预览，确保后端已完成处理
@@ -825,6 +1067,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
 
         streamCompleted = true
         isGenerating.value = false
+        previewMode.value = 'preview'
         eventSource?.close()
       } catch (parseError) {
         console.error('解析错误事件失败:', parseError, '原始数据:', event.data)
@@ -839,6 +1082,7 @@ const generateCode = async (userMessage: string, aiMessageIndex: number) => {
       if (eventSource?.readyState === EventSource.CONNECTING) {
         streamCompleted = true
         isGenerating.value = false
+        previewMode.value = 'preview'
         eventSource?.close()
 
         setTimeout(async () => {
@@ -862,6 +1106,7 @@ const handleError = (error: unknown, aiMessageIndex: number) => {
   messages.value[aiMessageIndex].loading = false
   message.error('生成失败，请重试')
   isGenerating.value = false
+  previewMode.value = 'preview'
 }
 
 // 更新预览
@@ -916,6 +1161,19 @@ const downloadCode = async () => {
     message.error('下载失败，请重试')
   } finally {
     downloading.value = false
+  }
+}
+
+/**
+ * 跳转到浏览统计页面
+ */
+const goToViewStat = () => {
+  if (!appInfo.value?.deployKey) {
+    message.warning('应用尚未部署，无法查看浏览统计')
+    return
+  }
+  if (appId.value) {
+    router.push(`/app/viewstat/${appId.value}`)
   }
 }
 
@@ -1096,6 +1354,7 @@ onUnmounted(() => {
 .header-right {
   display: flex;
   gap: 8px;
+  flex-wrap: wrap;
 }
 
 /* 主要内容区域 */
@@ -1121,10 +1380,11 @@ onUnmounted(() => {
 }
 
 .messages-container {
-  flex: 0.9;
+  flex: 1;
   padding: 20px;
   overflow-y: auto;
   scroll-behavior: smooth;
+  min-height: 0;
   background:
     radial-gradient(ellipse at 20% 0%, rgba(187, 247, 208, 0.4) 0, transparent 50%),
     radial-gradient(ellipse at 80% 100%, rgba(167, 243, 208, 0.3) 0, transparent 50%),
@@ -1320,6 +1580,7 @@ onUnmounted(() => {
   padding: 16px 20px;
   background: rgba(240, 253, 244, 0.5);
   border-top: 1px solid rgba(187, 247, 208, 0.3);
+  flex-shrink: 0;
 }
 
 .input-wrapper {
@@ -1336,17 +1597,40 @@ onUnmounted(() => {
   box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.12);
 }
 
-.input-wrapper .ant-input {
-  padding-right: 60px;
+.input-wrapper :deep(.ant-input) {
+  padding-right: 130px;
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
 }
 
+.input-wrapper :deep(.ant-input-textarea textarea) {
+  min-height: 80px !important;
+  padding: 12px !important;
+}
+
 .input-actions {
   position: absolute;
-  bottom: 8px;
-  right: 8px;
+  bottom: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.mode-select {
+  width: 120px;
+}
+
+.mode-select :deep(.ant-select-selector) {
+  border-radius: 6px !important;
+  border-color: rgba(34, 197, 94, 0.3) !important;
+  background: rgba(255, 255, 255, 0.9) !important;
+  font-size: 12px;
+}
+
+.mode-select :deep(.ant-select-selection-item) {
+  font-size: 12px;
 }
 
 /* 右侧预览区域 */
@@ -1366,16 +1650,60 @@ onUnmounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 16px 20px;
+  padding: 12px 20px;
   border-bottom: 1px solid rgba(187, 247, 208, 0.3);
   background: rgba(240, 253, 244, 0.4);
+  gap: 12px;
 }
 
-.preview-header h3 {
-  margin: 0;
-  font-size: 15px;
-  font-weight: 600;
+.preview-header-left {
+  display: flex;
+  align-items: center;
+}
+
+.preview-tabs {
+  display: flex;
+  gap: 4px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.preview-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  border: none;
+  background: transparent;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #64748b;
+  transition: all 0.2s ease;
+}
+
+.preview-tab:hover {
+  background: rgba(255, 255, 255, 0.7);
   color: var(--color-primary-dark, #166534);
+}
+
+.preview-tab.active {
+  background: #ffffff;
+  color: var(--color-primary, #15803d);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.view-stat-tab {
+  margin-left: 8px;
+  background: rgba(34, 197, 94, 0.1);
+  color: #22c55e;
+}
+
+.view-stat-tab:hover {
+  background: rgba(34, 197, 94, 0.2);
+  color: #16a34a;
 }
 
 .preview-actions {
@@ -1388,6 +1716,16 @@ onUnmounted(() => {
   position: relative;
   overflow: hidden;
   background: #ffffff;
+}
+
+.preview-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.code-panel {
+  height: 100%;
 }
 
 .preview-placeholder {

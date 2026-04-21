@@ -1,15 +1,17 @@
 package com.dzc.dzcaicodemother.service;
 
-import com.mybatisflex.core.query.QueryWrapper;
-import com.mybatisflex.core.service.IService;
+import java.util.List;
+
 import com.dzc.dzcaicodemother.model.dto.app.AppAddRequest;
 import com.dzc.dzcaicodemother.model.dto.app.AppQueryRequest;
 import com.dzc.dzcaicodemother.model.entity.App;
 import com.dzc.dzcaicodemother.model.entity.User;
 import com.dzc.dzcaicodemother.model.vo.AppVO;
-import reactor.core.publisher.Flux;
+import com.dzc.dzcaicodemother.model.vo.AppViewStatVO;
+import com.mybatisflex.core.query.QueryWrapper;
+import com.mybatisflex.core.service.IService;
 
-import java.util.List;
+import reactor.core.publisher.Flux;
 
 /**
  * 应用 服务层。
@@ -77,5 +79,24 @@ public interface AppService extends IService<App> {
      * @return
      */
     QueryWrapper getQueryWrapper(AppQueryRequest appQueryRequest);
+
+    /**
+     * 记录应用浏览
+     * 使用 Redis 缓存实现防重复记录（同一用户同一天只计一次）
+     *
+     * @param appId  应用ID
+     * @param userId 用户ID（可为null，表示游客浏览）
+     * @param ip     客户端IP地址（用于游客标识）
+     */
+    void recordView(Long appId, Long userId, String ip);
+
+    /**
+     * 获取应用浏览统计
+     *
+     * @param appId  应用ID
+     * @param userId 用户ID（可为null）
+     * @return 浏览统计视图对象
+     */
+    AppViewStatVO getViewStat(Long appId, Long userId);
 
 }

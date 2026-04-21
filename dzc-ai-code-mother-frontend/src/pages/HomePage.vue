@@ -14,6 +14,16 @@ const loginUserStore = useLoginUserStore()
 const userPrompt = ref('')
 const creating = ref(false)
 
+// 代码生成模式选择
+const selectedCodeGenMode = ref('auto')
+
+const CODE_GEN_MODE_OPTIONS = [
+  { value: 'auto', label: 'AI 智能' },
+  { value: 'html', label: 'HTML' },
+  { value: 'multi_file', label: '多文件' },
+  { value: 'vue_project', label: 'Vue 项目' },
+]
+
 // 我的应用数据
 const myApps = ref<API.AppVO[]>([])
 const myAppsPage = reactive({
@@ -160,8 +170,17 @@ const createApp = async () => {
 
   creating.value = true
   try {
+    let prompt = userPrompt.value.trim()
+    if (selectedCodeGenMode.value === 'html') {
+      prompt = `【强制使用 HTML 单文件模式生成代码】\n${prompt}`
+    } else if (selectedCodeGenMode.value === 'multi_file') {
+      prompt = `【强制使用多文件模式生成代码】\n${prompt}`
+    } else if (selectedCodeGenMode.value === 'vue_project') {
+      prompt = `【强制使用 Vue 项目模式生成代码】\n${prompt}`
+    }
+
     const res = await addApp({
-      initPrompt: userPrompt.value.trim(),
+      initPrompt: prompt,
     })
 
     if (res.data.code === 0 && res.data.data) {
@@ -343,9 +362,9 @@ const onSortChange = (value: string) => {
 const viewChat = (appId: string | number | undefined, showInteraction?: boolean) => {
   if (appId) {
     if (showInteraction) {
-      router.push(`/app/chat/${appId}?view=1&showInteraction=true`)
+      router.push(`/app/chat/${appId}?view=1&readonly=true&showInteraction=true`)
     } else {
-      router.push(`/app/chat/${appId}?view=1`)
+      router.push(`/app/chat/${appId}?view=1&readonly=true`)
     }
   }
 }
@@ -407,6 +426,11 @@ watch(activeTab, (newTab) => {
           class="prompt-input"
         />
         <div class="input-actions">
+          <a-select
+            v-model:value="selectedCodeGenMode"
+            :options="CODE_GEN_MODE_OPTIONS"
+            class="mode-select"
+          />
           <a-button type="primary" size="large" @click="createApp" :loading="creating">
             <template #icon>
               <span>↑</span>
@@ -472,10 +496,7 @@ watch(activeTab, (newTab) => {
       </div>
 
       <!-- 搜索筛选栏（仅在精选作品标签页显示） -->
-      <div
-        v-if="activeTab === 'featured'"
-        class="filter-bar sticky-bar"
-      >
+      <div v-if="activeTab === 'featured'" class="filter-bar sticky-bar">
         <a-input-search
           v-model:value="searchKeyword"
           placeholder="搜索作品标题"
@@ -514,6 +535,7 @@ watch(activeTab, (newTab) => {
                   v-for="app in myApps"
                   :key="app.id"
                   :app="app"
+                  :isOwner="true"
                   @view-chat="viewChat"
                   @view-work="viewWork"
                 />
@@ -740,6 +762,20 @@ watch(activeTab, (newTab) => {
   display: flex;
   gap: 8px;
   align-items: center;
+}
+
+.mode-select {
+  width: 130px;
+}
+
+.mode-select :deep(.ant-select-selector) {
+  border-radius: 8px !important;
+  border-color: rgba(34, 197, 94, 0.3) !important;
+  background: rgba(255, 255, 255, 0.8) !important;
+}
+
+.mode-select :deep(.ant-select-selection-item) {
+  font-size: 13px;
 }
 
 .quick-actions {

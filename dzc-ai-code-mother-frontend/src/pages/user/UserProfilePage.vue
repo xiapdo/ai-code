@@ -81,6 +81,13 @@
               >
                 每日签到
               </div>
+              <div
+                class="tab-button"
+                :class="{ active: activeTab === 'works' }"
+                @click="switchTab('works')"
+              >
+                我的作品
+              </div>
             </div>
           </div>
 
@@ -263,6 +270,35 @@
                 </div>
               </a-spin>
             </div>
+
+            <!-- 我的作品 -->
+            <div v-else-if="activeTab === 'works'" key="works" class="app-list-tab">
+              <a-spin :spinning="loadingWorks">
+                <a-empty v-if="myApps.length === 0 && !loadingWorks" description="还没有创建任何作品" />
+                <div v-else class="app-grid">
+                  <AppCard
+                    v-for="app in myApps"
+                    :key="app.id"
+                    :app="app"
+                    :isOwner="true"
+                    @click="handleAppClick"
+                    @view-chat="viewChat"
+                    @view-work="viewWork"
+                    @view-stat="handleViewStat"
+                  />
+                </div>
+                <div v-if="myApps.length > 0" class="pagination-wrapper">
+                  <a-pagination
+                    v-model:current="worksPageNum"
+                    :total="worksTotal"
+                    :page-size="8"
+                    show-size-changer
+                    @change="loadMyApps"
+                    @show-size-change="loadMyApps"
+                  />
+                </div>
+              </a-spin>
+            </div>
           </transition>
         </a-card>
       </a-col>
@@ -297,14 +333,14 @@
 </template>
 
 <script setup lang="ts">
+import { listMyAppVoByPage } from '@/api/appController'
 import { getUserCollectedApps, getUserLikedApps } from '@/api/interactionController'
 import { editUser, getCheckinStatus, uploadAvatar, userCheckin } from '@/api/userController'
 import defaultAvatar from '@/assets/aiAvatar.png'
 import AppCard from '@/components/AppCard.vue'
 import { useLoginUserStore } from '@/stores/loginUser'
 import { CheckCircleOutlined, CloseCircleOutlined, CopyOutlined, GiftOutlined, PlusOutlined } from '@ant-design/icons-vue'
-import type { FormInstance, Rule } from 'ant-design-vue'
-import { message } from 'ant-design-vue'
+import { message, type FormInstance } from 'ant-design-vue'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
@@ -326,6 +362,12 @@ const loadingLike = ref(false)
 // 签到相关数据
 const checkinStatus = ref<API.CheckinStatusVO>()
 const checkinLoading = ref(false)
+
+// 作品相关数据
+const myApps = ref<API.AppVO[]>([])
+const worksPageNum = ref(1)
+const worksTotal = ref(0)
+const loadingWorks = ref(false)
 
 // 金币动画相关数据
 const showCoinAnimation = ref(false)
@@ -357,6 +399,10 @@ const switchTab = (tab: string) => {
   // 切换到喜欢时加载数据
   if (tab === 'like') {
     loadLikedApps()
+  }
+  // 切换到作品时加载数据
+  if (tab === 'works') {
+    loadMyApps()
   }
   // 切换到签到时加载数据
   if (tab === 'checkin') {
@@ -394,6 +440,33 @@ const loadLikedApps = async () => {
   } finally {
     loadingLike.value = false
   }
+}
+
+// 加载我的作品列表
+const loadMyApps = async () => {
+  loadingWorks.value = true
+  try {
+    const res = await listMyAppVoByPage({
+      current: worksPageNum.value,
+      pageSize: 8,
+    })
+    if (res.data.code === 0 && res.data.data) {
+      myApps.value = res.data.data.records || []
+      worksTotal.value = res.data.data.totalRow || 0
+    }
+  } catch (error) {
+    console.error('加载作品列表失败:', error)
+    message.error('加载作品列表失败')
+  } finally {
+    loadingWorks.value = false
+  }
+}
+
+/**
+ * 跳转到浏览统计页面
+ */
+const handleViewStat = (appId: number) => {
+  router.push(`/app/viewstat/${appId}`)
 }
 
 // 加载签到状态

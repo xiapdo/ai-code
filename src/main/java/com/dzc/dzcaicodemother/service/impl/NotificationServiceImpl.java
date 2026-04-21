@@ -4,6 +4,8 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
@@ -20,6 +22,7 @@ import com.dzc.dzcaicodemother.model.entity.App;
 import com.dzc.dzcaicodemother.model.entity.User;
 import com.dzc.dzcaicodemother.model.enums.NotificationTypeEnum;
 import com.dzc.dzcaicodemother.model.vo.UserNotificationVO;
+import com.dzc.dzcaicodemother.model.vo.UserVO;
 import com.dzc.dzcaicodemother.service.AppService;
 import com.dzc.dzcaicodemother.service.NotificationService;
 import com.dzc.dzcaicodemother.service.UserService;
@@ -140,6 +143,38 @@ public class NotificationServiceImpl implements NotificationService {
                 .map(json -> JSONUtil.toBean(json, UserNotificationVO.class))
                 .collect(Collectors.toList());
 
+        Set<Long> actorUserIds = notifications.stream()
+                .map(UserNotificationVO::getActorUserId)
+                .filter(id -> id != null)
+                .collect(Collectors.toSet());
+
+        if (!actorUserIds.isEmpty()) {
+            Map<Long, UserVO> userVOMap = userService.listByIds(actorUserIds).stream()
+                    .collect(Collectors.toMap(User::getId, userService::getUserVO));
+
+            log.info("Fetching fresh user data for {} users", userVOMap.size());
+            for (Map.Entry<Long, UserVO> entry : userVOMap.entrySet()) {
+                log.info("User {} fresh data: name={}, avatar={}", entry.getKey(), entry.getValue().getUserName(), entry.getValue().getUserAvatar());
+            }
+
+            for (UserNotificationVO notification : notifications) {
+                if (notification.getActorUserId() != null) {
+                    UserVO freshUserVO = userVOMap.get(notification.getActorUserId());
+                    if (freshUserVO != null) {
+                        log.info("Updating notification {}: old name={}, new name={}, old avatar={}, new avatar={}",
+                                notification.getId(),
+                                notification.getActorUserName(),
+                                freshUserVO.getUserName(),
+                                notification.getActorUserAvatar(),
+                                freshUserVO.getUserAvatar());
+                        notification.setActorUserName(freshUserVO.getUserName());
+                        notification.setActorUserAvatar(freshUserVO.getUserAvatar());
+                        notification.setContent(regenerateNotificationContent(notification, freshUserVO.getUserName()));
+                    }
+                }
+            }
+        }
+
         if (request.getUnreadOnly() != null && request.getUnreadOnly()) {
             notifications = notifications.stream()
                     .filter(n -> !Boolean.TRUE.equals(n.getIsRead()))
@@ -155,7 +190,12 @@ public class NotificationServiceImpl implements NotificationService {
             return new ArrayList<>();
         }
 
-        return notifications.subList(start, end);
+        List<UserNotificationVO> result = notifications.subList(start, end);
+        log.info("Returning {} notifications, first one has actorName={}, actorAvatar={}",
+                result.size(),
+                result.isEmpty() ? "N/A" : result.get(0).getActorUserName(),
+                result.isEmpty() ? "N/A" : result.get(0).getActorUserAvatar());
+        return result;
     }
 
     @Override
@@ -233,6 +273,35 @@ public class NotificationServiceImpl implements NotificationService {
         vo.setIsRead(false);
         vo.setCreateTime(LocalDateTime.now());
         return vo;
+    }
+
+    private String regenerateNotificationContent(UserNotificationVO notification, String freshUserName) {
+        if (notification.getContent() == null || notification.getAppName() == null) {
+            return notification.getContent();
+        }
+        String type = notification.getType();
+        if (NotificationTypeEnum.LIKE.getValue().equals(type)) {
+            return String.format("%s 点赞了你的应用《%s》", freshUserName, notification.getAppName());
+        } else if (NotificationTypeEnum.COLLECT.getValue().equals(type)) {
+            return String.format("%s 收藏了你的应用《%s》", freshUserName, notification.getAppName());
+        } else if (NotificationTypeEnum.COMMENT.getValue().equals(type)) {
+            String originalContent = notification.getContent();
+            int idx = originalContent.indexOf("评论了你的应用");
+            if (idx > 0) {
+                String commentPart = originalContent.substring(idx + 8);
+                return freshUserName + " 评论了你的应用" + commentPart;
+            }
+            return originalContent;
+        } else if (NotificationTypeEnum.REPLY.getValue().equals(type)) {
+            String originalContent = notification.getContent();
+            int idx = originalContent.indexOf("回复了我");
+            if (idx > 0) {
+                String replyPart = originalContent.substring(idx + 4);
+                return freshUserName + " 回复了我" + replyPart;
+            }
+            return originalContent;
+        }
+        return notification.getContent();
     }
 
     private void saveNotificationToRedis(Long userId, UserNotificationVO notification) {

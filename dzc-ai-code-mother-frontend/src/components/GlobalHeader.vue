@@ -888,7 +888,7 @@ onMounted(() => {
   height: 46px;
   width: 46px;
   border-radius: 50%;
-  background-image: url('../assets/logo.png');
+  background-image: url('../assets/1.webp');
   background-size: cover;
   background-position: center;
   border: 3px solid rgba(255, 255, 255, 0.8);

@@ -1,9 +1,17 @@
 package com.dzc.dzcaicodemother.core.handler;
 
-import cn.hutool.core.util.StrUtil;
-import cn.hutool.json.JSONObject;
-import cn.hutool.json.JSONUtil;
-import com.dzc.dzcaicodemother.ai.model.message.*;
+import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import org.springframework.stereotype.Component;
+
+import com.dzc.dzcaicodemother.ai.model.message.AiResponseMessage;
+import com.dzc.dzcaicodemother.ai.model.message.StreamMessage;
+import com.dzc.dzcaicodemother.ai.model.message.StreamMessageTypeEnum;
+import com.dzc.dzcaicodemother.ai.model.message.ToolExecutedMessage;
+import com.dzc.dzcaicodemother.ai.model.message.ToolRequestMessage;
 import com.dzc.dzcaicodemother.ai.tools.BaseTool;
 import com.dzc.dzcaicodemother.ai.tools.ToolManager;
 import com.dzc.dzcaicodemother.constant.AppConstant;
@@ -13,15 +21,13 @@ import com.dzc.dzcaicodemother.model.entity.User;
 import com.dzc.dzcaicodemother.model.enums.ChatHistoryMessageTypeEnum;
 import com.dzc.dzcaicodemother.service.ChatHistoryOriginalService;
 import com.dzc.dzcaicodemother.service.ChatHistoryService;
+
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONObject;
+import cn.hutool.json.JSONUtil;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
-
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
 
 /**
  * JSON 消息流处理器
@@ -113,6 +119,7 @@ public class JsonMessageStreamHandler {
                 chatHistoryStringBuilder.append(data);
                 // 对于 AI 响应内容，与展示数据处理逻辑相同
                 aiResponseStringBuilder.append(data);
+                log.debug("[VUE模式] AI_RESPONSE: {}", data);
                 return data;
             }
             case TOOL_REQUEST -> {
@@ -144,6 +151,8 @@ public class JsonMessageStreamHandler {
                 String result = tool.generateToolExecutedResult(arguments);
                 // 输出前端和要持久化的内容
                 String output = String.format("\n\n%s\n\n", result);
+                log.info("[VUE模式] 工具 {} 执行结果输出，长度: {}", toolName, output.length());
+                log.debug("[VUE模式] 工具 {} 输出内容: {}", toolName, output.substring(0, Math.min(output.length(), 200)));
                 chatHistoryStringBuilder.append(output);
                 return output;
             }

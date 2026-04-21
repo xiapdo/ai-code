@@ -93,5 +93,10 @@ public class AppVO implements Serializable {
      */
     private Boolean isCollected;
 
+    /**
+     * 浏览量
+     */
+    private Integer viewCount;
+
     private static final long serialVersionUID = 1L;
 }

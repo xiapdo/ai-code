@@ -224,10 +224,10 @@
 
 <script setup lang="ts">
 import {
-    generateInviteCode,
-    getChatMessages,
-    getChatRoomById,
-    listRoomMembers,
+  generateInviteCode,
+  getChatMessages,
+  getChatRoomById,
+  listRoomMembers,
 } from '@/api/chatRoomController'
 import { getUserVoById } from '@/api/userController'
 import { default as defaultAvatar } from '@/assets/logo.png'

@@ -180,6 +180,20 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     @Override
+    public User getLoginUserPermitNull(HttpServletRequest request) {
+        // 先判断用户是否登录
+        Object userObj = request.getSession().getAttribute(USER_LOGIN_STATE);
+        User currentUser = (User) userObj;
+        if (currentUser == null || currentUser.getId() == null) {
+            return null;
+        }
+        // 从数据库查询当前用户信息
+        long userId = currentUser.getId();
+        currentUser = this.getById(userId);
+        return currentUser;
+    }
+
+    @Override
     public UserVO getUserVO(User user) {
         if (user == null) {
             return null;

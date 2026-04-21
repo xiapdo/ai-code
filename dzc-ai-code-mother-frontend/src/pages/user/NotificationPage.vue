@@ -25,7 +25,7 @@
           :class="{ 'notification-item--unread': !notification.isRead }"
           @click="handleNotificationClick(notification)"
         >
-          <a-avatar :src="notification.actorUserAvatar" :size="48">
+          <a-avatar :src="notification.actorUserAvatar || defaultAvatar" :size="48">
             {{ notification.actorUserName?.charAt(0) || 'U' }}
           </a-avatar>
           <div class="notification-content">
@@ -55,6 +55,8 @@ import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+
+const defaultAvatar = new URL('@/assets/aiAvatar.png', import.meta.url).href
 
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -128,7 +130,16 @@ const handleNotificationClick = async (notification: API.UserNotificationVO) => 
   }
 
   if (notification.appId) {
-    router.push(`/app/chat/${notification.appId}`)
+    if (notification.type === 'COMMENT' || notification.type === 'REPLY') {
+      const highlightCommentId = (notification as any).commentId
+      if (highlightCommentId) {
+        router.push(`/app/chat/${notification.appId}?openCommentDrawer=true&highlightCommentId=${highlightCommentId}&showInteraction=true`)
+      } else {
+        router.push(`/app/chat/${notification.appId}?openCommentDrawer=true&showInteraction=true`)
+      }
+    } else {
+      router.push(`/app/chat/${notification.appId}?showInteraction=true`)
+    }
   }
 }
 

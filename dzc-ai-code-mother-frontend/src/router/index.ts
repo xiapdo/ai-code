@@ -4,6 +4,7 @@ import ChatRoomManagePage from '@/pages/admin/ChatRoomManagePage.vue'
 import UserManagePage from '@/pages/admin/UserManagePage.vue'
 import AppChatPage from '@/pages/app/AppChatPage.vue'
 import AppEditPage from '@/pages/app/AppEditPage.vue'
+import AppViewStatPage from '@/pages/app/AppViewStatPage.vue'
 import ChatCreateOrJoinPage from '@/pages/chat/ChatCreateOrJoinPage.vue'
 import ChatInvitePage from '@/pages/chat/ChatInvitePage.vue'
 import ChatRoomSimplePage from '@/pages/chat/ChatRoomSimplePage.vue'
@@ -72,6 +73,11 @@ const router = createRouter({
       path: '/app/edit/:id',
       name: '编辑应用',
       component: AppEditPage,
+    },
+    {
+      path: '/app/viewstat/:id',
+      name: '浏览统计',
+      component: AppViewStatPage,
     },
     {
       path: '/chat/create-or-join',

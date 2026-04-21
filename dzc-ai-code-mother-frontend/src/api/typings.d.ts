@@ -34,6 +34,12 @@ declare namespace API {
     appName?: string
   }
 
+  type CodeFileUpdateRequest = {
+    appId?: number
+    filePath?: string
+    content?: string
+  }
+
   type AppVersionSnapshot = {
     id?: number
     appId?: number
@@ -78,6 +84,15 @@ declare namespace API {
     commentCount?: number
     isLiked?: boolean
     isCollected?: boolean
+    viewCount?: number
+  }
+
+  type AppViewStatVO = {
+    totalViewCount?: number
+    todayViewCount?: number
+    yesterdayViewCount?: number
+    avgViewCount?: number
+    viewTrend?: Record<string, number>
   }
 
   type CheckinRecordVO = {
@@ -172,6 +187,12 @@ declare namespace API {
   type BaseResponseAppVO = {
     code?: number
     data?: AppVO
+    message?: string
+  }
+
+  type BaseResponseAppViewStatVO = {
+    code?: number
+    data?: AppViewStatVO
     message?: string
   }
 

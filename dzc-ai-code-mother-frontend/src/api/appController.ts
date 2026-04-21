@@ -180,3 +180,31 @@ export async function updateApp(body: API.AppUpdateRequest, options?: { [key: st
     ...(options || {}),
   })
 }
+
+/** 更新代码文件内容 POST /app/updateFile */
+export async function updateCodeFile(body: API.CodeFileUpdateRequest, options?: { [key: string]: any }) {
+  return request<API.BaseResponseBoolean>('/app/updateFile', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    data: body,
+    ...(options || {}),
+  })
+}
+
+/** 记录应用浏览量 POST /app/view/record/{appId} */
+export async function recordAppView(appId: number, options?: { [key: string]: any }) {
+  return request<API.BaseResponseBoolean>(`/app/view/record/${appId}`, {
+    method: 'POST',
+    ...(options || {}),
+  })
+}
+
+/** 获取应用浏览统计 GET /app/view/stat/{appId} */
+export async function getAppViewStat(appId: number, options?: { [key: string]: any }) {
+  return request<API.BaseResponseAppViewStatVO>(`/app/view/stat/${appId}`, {
+    method: 'GET',
+    ...(options || {}),
+  })
+}

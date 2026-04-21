@@ -33,6 +33,13 @@ export const CODE_GEN_TYPE_OPTIONS = Object.values(CODE_GEN_TYPE_CONFIG).map((co
   value: config.value,
 }))
 
+export const CODE_GEN_MODE_OPTIONS = [
+  { label: '智能匹配', value: 'auto' },
+  { label: 'HTML 单页', value: 'html' },
+  { label: '多文件', value: 'multi_file' },
+  { label: 'Vue 项目', value: 'vue_project' },
+]
+
 /**
  * 格式化代码生成类型
  * @param type 代码生成类型

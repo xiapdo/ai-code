@@ -152,6 +152,8 @@ interface Props {
   cover: string | undefined
   codeGenType: string | undefined
   versionNo: number | undefined
+  creatorUserAvatar: string | undefined
+  creatorUserName: string | undefined
   open: boolean
 }
 
@@ -292,8 +294,8 @@ const handleConfirm = () => {
           codeGenType: props.codeGenType,
           versionNo: props.versionNo,
           userId: loginUserStore.loginUser.id,
-          userName: loginUserStore.loginUser.userName,
-          userAvatar: loginUserStore.loginUser.userAvatar,
+          userName: props.creatorUserName || loginUserStore.loginUser.userName,
+          userAvatar: props.creatorUserAvatar || loginUserStore.loginUser.userAvatar,
         })
         const res = await sendChatMessage({
           roomId: selectedRoomId.value,

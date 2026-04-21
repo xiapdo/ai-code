@@ -1,10 +1,20 @@
 package com.dzc.dzcaicodemother.controller;
 
-import cn.hutool.core.bean.BeanUtil;
-import cn.hutool.core.util.StrUtil;
-import cn.hutool.json.JSONUtil;
-import com.mybatisflex.core.paginate.Page;
-import com.mybatisflex.core.query.QueryWrapper;
+import java.io.File;
+import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
+
+import org.springframework.http.MediaType;
+import org.springframework.http.codec.ServerSentEvent;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.RestController;
+
 import com.dzc.dzcaicodemother.annotation.AuthCheck;
 import com.dzc.dzcaicodemother.common.BaseResponse;
 import com.dzc.dzcaicodemother.common.DeleteRequest;
@@ -14,29 +24,32 @@ import com.dzc.dzcaicodemother.constant.UserConstant;
 import com.dzc.dzcaicodemother.exception.BusinessException;
 import com.dzc.dzcaicodemother.exception.ErrorCode;
 import com.dzc.dzcaicodemother.exception.ThrowUtils;
-import com.dzc.dzcaicodemother.model.dto.app.*;
+import com.dzc.dzcaicodemother.model.dto.app.AppAddRequest;
+import com.dzc.dzcaicodemother.model.dto.app.AppAdminUpdateRequest;
+import com.dzc.dzcaicodemother.model.dto.app.AppDeployRequest;
+import com.dzc.dzcaicodemother.model.dto.app.AppQueryRequest;
+import com.dzc.dzcaicodemother.model.dto.app.AppUpdateRequest;
+import com.dzc.dzcaicodemother.model.dto.app.CodeFileUpdateRequest;
 import com.dzc.dzcaicodemother.model.entity.App;
 import com.dzc.dzcaicodemother.model.entity.User;
 import com.dzc.dzcaicodemother.model.vo.AppVO;
+import com.dzc.dzcaicodemother.model.vo.AppViewStatVO;
 import com.dzc.dzcaicodemother.ratelimter.annotation.RateLimit;
 import com.dzc.dzcaicodemother.ratelimter.enums.RateLimitType;
 import com.dzc.dzcaicodemother.service.AppService;
 import com.dzc.dzcaicodemother.service.ProjectDownloadService;
 import com.dzc.dzcaicodemother.service.UserService;
+import com.mybatisflex.core.paginate.Page;
+import com.mybatisflex.core.query.QueryWrapper;
+
+import cn.hutool.core.bean.BeanUtil;
+import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONUtil;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.http.MediaType;
-import org.springframework.http.codec.ServerSentEvent;
-import org.springframework.web.bind.annotation.*;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-
-import java.io.File;
-import java.time.LocalDateTime;
-import java.util.List;
-import java.util.Map;
 
 /**
  * 应用 控制层。
@@ -141,6 +154,44 @@ public class AppController {
         String downloadFileName = String.valueOf(appId);
         // 7. 调用通用下载服务
         projectDownloadService.downloadProjectAsZip(sourceDirPath, downloadFileName, response);
+    }
+
+    /**
+     * 更新代码文件内容
+     *
+     * @param codeFileUpdateRequest 更新请求
+     * @param request               请求
+     * @return 更新结果
+     */
+    @PostMapping("/updateFile")
+    public BaseResponse<Boolean> updateCodeFile(@RequestBody CodeFileUpdateRequest codeFileUpdateRequest,
+                                                 HttpServletRequest request) {
+        // 1. 参数校验
+        ThrowUtils.throwIf(codeFileUpdateRequest == null, ErrorCode.PARAMS_ERROR);
+        Long appId = codeFileUpdateRequest.getAppId();
+        String filePath = codeFileUpdateRequest.getFilePath();
+        String content = codeFileUpdateRequest.getContent();
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用ID无效");
+        ThrowUtils.throwIf(StrUtil.isBlank(filePath), ErrorCode.PARAMS_ERROR, "文件路径不能为空");
+        // 2. 查询应用信息
+        App app = appService.getById(appId);
+        ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR, "应用不存在");
+        // 3. 权限校验：只有应用创建者可以修改代码
+        User loginUser = userService.getLoginUser(request);
+        if (!app.getUserId().equals(loginUser.getId())) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限修改该应用代码");
+        }
+        // 4. 构建文件完整路径
+        String codeGenType = app.getCodeGenType();
+        String sourceDirName = codeGenType + "_" + appId;
+        String sourceDirPath = AppConstant.CODE_OUTPUT_ROOT_DIR + File.separator + sourceDirName;
+        String fullFilePath = sourceDirPath + File.separator + filePath.replace("/", File.separator);
+        // 5. 检查文件是否存在
+        File file = new File(fullFilePath);
+        ThrowUtils.throwIf(!file.exists() || !file.isFile(), ErrorCode.NOT_FOUND_ERROR, "文件不存在");
+        // 6. 写入文件内容
+        cn.hutool.core.io.FileUtil.writeString(content, fullFilePath, java.nio.charset.StandardCharsets.UTF_8);
+        return ResultUtils.success(true);
     }
 
     /**
@@ -368,5 +419,74 @@ public class AppController {
         ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR);
         // 获取封装类
         return ResultUtils.success(appService.getAppVO(app));
+    }
+
+    /**
+     * 记录应用浏览量
+     *
+     * @param appId 应用 id
+     * @param request 请求
+     * @return 是否成功
+     */
+    @PostMapping("/view/record/{appId}")
+    public BaseResponse<Boolean> recordAppView(@PathVariable Long appId, HttpServletRequest request) {
+        // 参数校验
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 ID 无效");
+        // 查询应用是否存在
+        App app = appService.getById(appId);
+        ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR, "应用不存在");
+        // 获取当前登录用户（可能为空，游客也可以浏览）
+        User loginUser = userService.getLoginUserPermitNull(request);
+        Long userId = loginUser != null ? loginUser.getId() : null;
+        // 获取客户端IP地址（用于游客标识）
+        String ip = getClientIP(request);
+        // 记录浏览
+        appService.recordView(appId, userId, ip);
+        return ResultUtils.success(true);
+    }
+
+    /**
+     * 获取客户端IP地址
+     *
+     * @param request 请求
+     * @return IP地址
+     */
+    private String getClientIP(HttpServletRequest request) {
+        String ip = request.getHeader("X-Forwarded-For");
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getHeader("X-Real-IP");
+        }
+        if (ip == null || ip.isEmpty() || "unknown".equalsIgnoreCase(ip)) {
+            ip = request.getRemoteAddr();
+        }
+        // 处理多级代理的情况
+        if (ip != null && ip.contains(",")) {
+            ip = ip.split(",")[0].trim();
+        }
+        return ip != null ? ip : "unknown";
+    }
+
+    /**
+     * 获取应用浏览统计（仅创建者可访问）
+     *
+     * @param appId 应用 id
+     * @param request 请求
+     * @return 浏览统计数据
+     */
+    @GetMapping("/view/stat/{appId}")
+    public BaseResponse<AppViewStatVO> getAppViewStat(@PathVariable Long appId, HttpServletRequest request) {
+        // 参数校验
+        ThrowUtils.throwIf(appId == null || appId <= 0, ErrorCode.PARAMS_ERROR, "应用 ID 无效");
+        // 查询应用是否存在
+        App app = appService.getById(appId);
+        ThrowUtils.throwIf(app == null, ErrorCode.NOT_FOUND_ERROR, "应用不存在");
+        // 权限校验：仅创建者可查看
+        User loginUser = userService.getLoginUser(request);
+        if (!app.getUserId().equals(loginUser.getId())) {
+            throw new BusinessException(ErrorCode.NO_AUTH_ERROR, "无权限查看该应用的浏览统计");
+        }
+        // 获取浏览统计
+        AppViewStatVO viewStat = appService.getViewStat(appId, loginUser.getId());
+        return ResultUtils.success(viewStat);
     }
 }
